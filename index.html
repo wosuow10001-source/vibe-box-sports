@@ -4,52 +4,119 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>Vibe Sports | AI MatchSignal (Full Streamlit)</title>
+    <title>VIBE BOX SPORTS | AI MatchSignal</title>
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="AI 기반 스포츠 경기 예측 플랫폼. 해외축구, NBA, MLB, KBL 실시간 분석 및 정밀 예측 제공." />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <!-- Stlite Styles -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.css" />
     <style>
+        :root {
+            --neon-yellow: #CCFF00;
+            --dark-bg: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+        }
         body { 
-            margin: 0; padding: 0; background-color: #0f172a; color: white; 
+            margin: 0; padding: 0; background-color: var(--dark-bg); color: white; 
             display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; font-family: 'Inter', system-ui, sans-serif;
+            height: 100vh; font-family: 'Outfit', 'Inter', sans-serif;
+            overflow: hidden;
         }
         #stlite { width: 100%; height: 100vh; visibility: hidden; }
-        #loading { text-align: center; position: absolute; z-index: 10; }
-        .spinner { 
-            border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #CCFF00; 
-            border-radius: 50%; width: 60px; height: 60px; 
-            animation: spin 1s linear infinite; margin: 0 auto 30px; 
+        
+        #loading-container {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            width: 100%; height: 100%; position: absolute; z-index: 100;
+            transition: opacity 0.5s ease;
         }
+
+        .loader-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            padding: 3rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .brand-logo {
+            font-size: 2.5rem; font-weight: 800; color: var(--neon-yellow); 
+            margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: -2px;
+            text-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+        }
+
+        .spinner { 
+            border: 3px solid rgba(255, 255, 255, 0.1); border-left-color: var(--neon-yellow); 
+            border-radius: 50%; width: 50px; height: 50px; 
+            animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; margin: 2rem auto; 
+        }
+
         @keyframes spin { to { transform: rotate(360deg); } }
-        .brand { font-size: 2.2rem; font-weight: 800; color: #CCFF00; margin-bottom: 10px; text-transform: uppercase; letter-spacing: -1px; }
-        .status { font-size: 1.1rem; color: #94a3b8; margin-top: 10px; }
+
+        .progress-bar {
+            width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px; margin-top: 1rem; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; background: var(--neon-yellow); width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 10px var(--neon-yellow);
+        }
+
+        .status-text { font-size: 0.9rem; color: #94a3b8; font-weight: 500; margin-top: 1.5rem; min-height: 1.2rem; }
+        
+        .bg-glow {
+            position: absolute; width: 300px; height: 300px;
+            background: var(--neon-yellow); filter: blur(150px);
+            opacity: 0.05; border-radius: 50%; z-index: -1;
+        }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div class="brand">VIBE BOX SPORTS</div>
-        <div class="spinner"></div>
-        <p style="font-size: 1.3rem; font-weight: 700;">시스템 배포 중... (모든 리그 지원)</p>
-        <p class="status" id="statusText">프로젝트 매니페스트(68개 모듈)를 불러오는 중...</p>
+    <div id="loading-container">
+        <div class="bg-glow"></div>
+        <div class="loader-card">
+            <div class="brand-logo">VIBE BOX</div>
+            <div style="font-weight: 700; color: white; opacity: 0.8; letter-spacing: 1px;">AI MATCH SIGNAL</div>
+            <div class="spinner"></div>
+            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">시스템 부팅 중...</div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <p class="status-text" id="statusText">초기 설정 중...</p>
+        </div>
     </div>
+    
     <div id="stlite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.js"></script>
     <script>
         async function loadApp() {
             const statusText = document.getElementById('statusText');
+            const progressFill = document.getElementById('progressFill');
+            
+            const updateUI = (text, percent) => {
+                statusText.innerText = text;
+                progressFill.style.width = percent + '%';
+            };
+
             try {
-                // 1. Fetch the manifest
-                statusText.innerText = "데이터 파일 로딩 중 (1.4MB)...";
+                updateUI("프로젝트 매니페스트 불러오는 중...", 20);
                 const response = await fetch('stlite-manifest.json');
                 if (!response.ok) throw new Error('매니페스트 파일을 찾을 수 없습니다.');
                 const filesRaw = await response.json();
 
-                // 2. Format files for stlite
-                statusText.innerText = "Python 가상 파일 시스템 구축 중...";
+                updateUI("가상 파일 시스템 구축 중...", 40);
                 const stliteFiles = {};
                 for (const [path, data] of Object.entries(filesRaw)) {
                     if (typeof data === 'object' && data.content) {
                         if (data.encoding === 'base64') {
+                            // Binary files (DB, images) handling
                             stliteFiles[path] = { "data": data.content };
                         } else {
                             stliteFiles[path] = data.content;
@@ -59,23 +126,39 @@
                     }
                 }
 
-                // 3. Mount Streamlit
-                statusText.innerText = "Python 환경 부팅 중 (약 10초)...";
+                updateUI("Python 엔진 부팅 중 (약 10초)...", 70);
                 stlite.mount({
-                    requirements: ["streamlit", "pandas", "numpy", "scipy", "pillow", "beautifulsoup4", "lxml", "qrcode"],
+                    requirements: [
+                        "streamlit", "pandas", "numpy", "scipy", "pillow", 
+                        "beautifulsoup4", "lxml", "qrcode", "scikit-learn"
+                    ],
                     entrypoint: "app.py",
                     files: stliteFiles,
                 }, document.getElementById("stlite"));
 
-                // Show stlite once it's likely ready
-                setTimeout(() => {
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('stlite').style.visibility = 'visible';
-                }, 8000);
+                // Monitor for the app to be ready
+                updateUI("애플리케이션 준비 중...", 90);
+                
+                // Hide loader once stlite container starts rendering
+                const checkReady = setInterval(() => {
+                    const stliteContainer = document.getElementById('stlite');
+                    if (stliteContainer.children.length > 0) {
+                        updateUI("완료!", 100);
+                        setTimeout(() => {
+                            document.getElementById('loading-container').style.opacity = '0';
+                            document.getElementById('stlite').style.visibility = 'visible';
+                            setTimeout(() => {
+                                document.getElementById('loading-container').style.display = 'none';
+                            }, 500);
+                        }, 500);
+                        clearInterval(checkReady);
+                    }
+                }, 500);
 
             } catch (err) {
                 console.error(err);
-                statusText.innerHTML = `<span style="color: #ef4444;">오류 발생: ${err.message}</span><br>파일이 모두 업로드되었는지 확인하세요.`;
+                statusText.innerHTML = `<span style="color: #ef4444;">오류: ${err.message}</span>`;
+                progressFill.style.backgroundColor = "#ef4444";
             }
         }
 

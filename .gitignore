@@ -26,7 +26,9 @@ Thumbs.db
 # Data
 *.csv
 *.xlsx
-*.db
+# Allow .db for stlite
+!sports_data.db
+!data/community.db
 *.sqlite
 
 # Logs
