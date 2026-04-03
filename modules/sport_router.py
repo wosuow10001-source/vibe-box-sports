@@ -6,6 +6,7 @@
 
 from modules.predictor_soccer import SoccerPredictor
 from modules.predictor_basketball_league_normalized import BasketballPredictorLeagueNormalized
+from modules.nba_v2.src.predict import NBAPredictor as NBAPredictorV2
 from modules.predictor_baseball import BaseballPredictor
 from modules.predictor_volleyball import VolleyballPredictor
 
@@ -20,13 +21,14 @@ class SportRouter:
     - 리그별 정규화 적용 (농구)
     """
     
-    def __init__(self):
+    def __init__(self, data_collector=None):
         self.soccer_predictor = SoccerPredictor()
         
-        # 농구 예측기는 리그별로 생성
+        # NBA는 최첨단 생산 레벨 V2 ML 파이프라인 사용
+        self.nba_v2_engine = NBAPredictorV2(data_collector)
+        
+        # KBL은 기존 정규화 모델 사용
         self.basketball_predictors = {
-            'NBA East': BasketballPredictorLeagueNormalized('NBA East'),
-            'NBA West': BasketballPredictorLeagueNormalized('NBA West'),
             'KBL': BasketballPredictorLeagueNormalized('KBL')
         }
         
@@ -41,6 +43,7 @@ class SportRouter:
             'Bundesliga': 'soccer',
             'Serie A': 'soccer',
             'K리그1': 'soccer',
+            'MLS': 'soccer',
             
             # 농구
             'NBA': 'basketball',  # 기본 NBA (컨퍼런스 미지정)
@@ -53,6 +56,8 @@ class SportRouter:
             'KBO': 'baseball',
             
             # 배구
+            'V-리그 남자': 'volleyball',
+            'V-리그 여자': 'volleyball',
             'V-리그 (남)': 'volleyball',
             'V-리그 (여)': 'volleyball'
         }
@@ -88,7 +93,7 @@ class SportRouter:
         
         if sport == 'soccer':
             return self._predict_soccer(
-                home_team, away_team, home_data, away_data,
+                league, home_team, away_team, home_data, away_data,
                 weather, temperature, field_condition, match_importance,
                 rest_days_home, rest_days_away, injury_data, coaching_data,
                 lineup_home, lineup_away
@@ -127,14 +132,14 @@ class SportRouter:
                 lineup_home, lineup_away
             )
     
-    def _predict_soccer(self, home_team, away_team, home_data, away_data,
+    def _predict_soccer(self, league, home_team, away_team, home_data, away_data,
                        weather, temperature, field_condition, match_importance,
                        rest_days_home, rest_days_away, injury_data, coaching_data,
                        lineup_home, lineup_away):
         """축구: Bivariate Poisson + Dixon-Coles"""
         
         result = self.soccer_predictor.predict_match(
-            home_team, away_team, home_data, away_data,
+            league, home_team, away_team, home_data, away_data,
             weather, temperature, field_condition, match_importance,
             rest_days_home, rest_days_away, injury_data, coaching_data,
             lineup_home, lineup_away
@@ -152,18 +157,24 @@ class SportRouter:
         """농구: Normal Distribution (정규분포) - 리그별 정규화"""
         
         # 리그별 예측기 선택
-        league = self._detect_basketball_league(home_data, away_data)
-        predictor = self.basketball_predictors.get(league, self.basketball_predictors['NBA East'])
+        league_id = self._detect_basketball_league(home_data, away_data)
         
-        result = predictor.predict_match(
-            home_team, away_team, home_data, away_data,
-            weather, temperature, field_condition, match_importance,
-            rest_days_home, rest_days_away, injury_data, coaching_data,
-            lineup_home, lineup_away
-        )
+        if 'NBA' in league_id:
+            # 최첨단 V2 ML 파이프라인 (몬테카를로 + Isotonic Calibration) 적용
+            result = self.nba_v2_engine.predict(
+                home_team, away_team, injury_data=injury_data,
+                home_data=home_data, away_data=away_data
+            )
+        else:
+            predictor = self.basketball_predictors.get(league_id, BasketballPredictorLeagueNormalized('KBL'))
+            result = predictor.predict_match(
+                home_team, away_team, home_data, away_data,
+                weather, temperature, field_condition, match_importance,
+                rest_days_home, rest_days_away, injury_data, coaching_data,
+                lineup_home, lineup_away
+            )
         
         result['sport_type'] = 'basketball'
-        result['draw_prob'] = 0.0  # 농구는 무승부 없음
         
         return result
     

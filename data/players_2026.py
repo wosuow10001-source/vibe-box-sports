@@ -770,35 +770,45 @@ def get_team_players(league, team_name):
     if league == 'KBO':
         try:
             from data.kbo_rosters_complete_2026 import KBO_ROSTERS_2026
-            return KBO_ROSTERS_2026.get(team_name, [])
+            import copy
+            # 깊은 복사로 원본 데이터 보호
+            return copy.deepcopy(KBO_ROSTERS_2026.get(team_name, []))
         except ImportError as e:
             print(f"KBO 로스터 import 실패: {e}")
             pass
     elif league == 'K리그1':
         try:
             from data.kleague_rosters_complete_2026 import KLEAGUE_ROSTERS_2026
-            return KLEAGUE_ROSTERS_2026.get(team_name, [])
+            import copy
+            # 깊은 복사로 원본 데이터 보호
+            return copy.deepcopy(KLEAGUE_ROSTERS_2026.get(team_name, []))
         except ImportError as e:
             print(f"K리그1 로스터 import 실패: {e}")
             pass
     elif league == 'KBL':
         try:
             from data.kbl_rosters_complete_2025_26 import KBL_ROSTERS_2025_26
-            return KBL_ROSTERS_2025_26.get(team_name, [])
+            import copy
+            # 깊은 복사로 원본 데이터 보호
+            return copy.deepcopy(KBL_ROSTERS_2025_26.get(team_name, []))
         except ImportError as e:
             print(f"KBL 로스터 import 실패: {e}")
             pass
     elif league == 'V-리그 남자':
         try:
             from data.vleague_rosters_complete_2025_26 import VLEAGUE_MEN_ROSTERS_2025_26
-            return VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, [])
+            import copy
+            # 깊은 복사로 원본 데이터 보호
+            return copy.deepcopy(VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, []))
         except ImportError as e:
             print(f"V-리그 남자 로스터 import 실패: {e}")
             pass
     elif league == 'V-리그 여자':
         try:
             from data.vleague_rosters_complete_2025_26 import VLEAGUE_WOMEN_ROSTERS_2025_26
-            return VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, [])
+            import copy
+            # 깊은 복사로 원본 데이터 보호
+            return copy.deepcopy(VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, []))
         except ImportError as e:
             print(f"V-리그 여자 로스터 import 실패: {e}")
             pass

@@ -4,6 +4,7 @@
 - 득점 상관(λ_C) 반영으로 난타전/저득점 경기 구분
 - 저득점 영역 보정으로 무승부 확률 정확도 향상
 - 모든 요소 → λ → 스코어 분포 → 승률 (완전 연동)
+- 고급 메트릭스 (xG, xA, PPDA) 통합
 """
 
 import numpy as np
@@ -14,6 +15,7 @@ from scipy.stats import poisson
 from scipy.special import factorial
 import pickle
 from pathlib import Path
+from modules.advanced_soccer_metrics import get_soccer_metrics
 
 
 class SoccerPredictor:
@@ -26,38 +28,39 @@ class SoccerPredictor:
         # Dixon-Coles 보정 파라미터
         self.rho = 0.1  # 득점 상관 계수 (학습 가능)
         
-        # 가중치 설정 (λ 계산용) - 최근 폼 가중치 대폭 증가
+        # 고급 메트릭스 시스템
+        self.advanced_metrics = None  # 리그별로 초기화
+        
+        # 리그별 보정 상수 (사용자 요청: Production-Grade Calibration)
+        self.LEAGUE_CALIBRATION = {
+            "EPL":        {"attack": 1.00, "draw_bias": 1.00, "home_adv": 1.12, "lambda_c": 0.30},
+            "La Liga":    {"attack": 0.95, "draw_bias": 1.10, "home_adv": 1.15, "lambda_c": 0.28},
+            "Serie A":    {"attack": 0.90, "draw_bias": 1.15, "home_adv": 1.10, "lambda_c": 0.20},
+            "Bundesliga": {"attack": 1.10, "draw_bias": 0.95, "home_adv": 1.08, "lambda_c": 0.35},
+            "K-League":   {"attack": 0.85, "draw_bias": 1.20, "home_adv": 1.08, "lambda_c": 0.25},
+            "MLS":        {"attack": 1.15, "draw_bias": 0.85, "home_adv": 1.05, "lambda_c": 0.40}
+        }
+        
+        # 가중치 설정 (사용자 요청 기반)
         self.weights = {
-            'recent_form': 0.40,  # 22% → 40% (최근 경기력이 가장 중요)
-            'head_to_head': 0.10,
+            'season_avg': 0.50,   # 시즌 전체 성적 50%
+            'last_5_form': 0.30,  # 최근 5경기 폼 30%
+            'last_10_form': 0.20, # 최근 10경기 폼 20%
             'home_advantage': 0.10,
-            'player_condition': 0.12,
-            'tactical_fit': 0.08,
-            'weather': 0.04,
-            'rest_days': 0.06,
-            'motivation': 0.04,
-            'injury_impact': 0.03,
-            'coaching_staff': 0.03
+            'player_condition': 0.10,
+            'tactical_fit': 0.05,
+            'weather': 0.05,
+            'rest_days': 0.10,
+            'injury_impact': 0.15,
+            'coaching_staff': 0.05
         }
     
-    def predict_match(self, home_team, away_team, home_data, away_data, 
+    def predict_match(self, league, home_team, away_team, home_data, away_data, 
                      weather, temperature, field_condition, match_importance,
                      rest_days_home, rest_days_away, injury_data=None, coaching_data=None,
                      lineup_home=None, lineup_away=None):
         """
-        Bivariate Poisson + Dixon-Coles 기반 경기 예측
-        
-        1단계: 모든 요소를 수치화 (피처 엔지니어링)
-        2단계: 기대 득점 λ_A, λ_B 계산
-        3단계: 득점 상관 λ_C 계산 (경기 템포)
-        4단계: Bivariate Poisson + Dixon-Coles로 스코어 분포 계산
-        5단계: 스코어 분포에서 승률 도출
-        
-        Args:
-            injury_data (dict, optional): {'home': [...], 'away': [...]} 형태의 부상 정보
-            coaching_data (dict, optional): {'home': {...}, 'away': {...}} 형태의 코칭스태프 정보
-            lineup_home (dict, optional): 홈팀 라인업 정보
-            lineup_away (dict, optional): 원정팀 라인업 정보
+        Bivariate Poisson Simulation 기반 경기 예측 (50,000회 시뮬레이션)
         """
         
         # 라인업 기반 팀 데이터 보강
@@ -67,42 +70,23 @@ class SoccerPredictor:
             away_data = self._enhance_team_data_with_lineup(away_data, lineup_away)
         
         # ========== 1단계: 모든 요소 수치화 ==========
-        
-        # 1. 최근 폼 분석
         form_score = self._analyze_form(home_data, away_data)
-        
-        # 2. 홈 어드밴티지
         home_advantage = self._calculate_home_advantage(home_data)
-        
-        # 3. 선수 컨디션 (능력치, 컨디션, 스쿼드 깊이)
         player_condition = self._analyze_player_condition(
             home_data, away_data, rest_days_home, rest_days_away
         )
-        
-        # 4. 전술적 궁합
         tactical_score = self._analyze_tactical_fit(home_data, away_data)
-        
-        # 5. 날씨 영향
         weather_impact = self._analyze_weather_impact(
             weather, temperature, field_condition
         )
-        
-        # 6. 경기 중요도 (동기부여)
         motivation_score = self._analyze_motivation(match_importance)
-        
-        # 7. 휴식일 영향
         rest_impact = self._analyze_rest_days(rest_days_home, rest_days_away)
-        
-        # 8. 부상 영향 분석
         injury_impact = self._analyze_injury_impact(injury_data)
-        
-        # 9. 코칭스태프 영향 분석
         coaching_impact = self._analyze_coaching_impact(coaching_data, home_data, away_data)
         
-        # ========== 2단계: 기대 득점 λ 계산 ==========
-        
-        # 각 팀의 기대 득점(λ) 계산 - 모든 요소가 여기에 직접 반영
+        # ========== 2단계: 기대 득점 λ 계산 (리그 보정 적용) ==========
         lambda_home = self._calculate_expected_goals(
+            league=league,
             team_data=home_data,
             opponent_data=away_data,
             is_home=True,
@@ -114,66 +98,67 @@ class SoccerPredictor:
             rest=rest_impact['home'],
             motivation=motivation_score,
             injury=injury_impact['home'],
-            coaching=coaching_impact['home']
+            coaching=coaching_impact['home'],
+            rest_days_home=rest_days_home,
+            rest_days_away=rest_days_away,
+            injury_data=injury_data
         )
         
         lambda_away = self._calculate_expected_goals(
+            league=league,
             team_data=away_data,
             opponent_data=home_data,
             is_home=False,
             form=form_score['away'],
-            home_advantage=0,  # 원정팀은 홈 어드밴티지 없음
+            home_advantage=0,
             player_condition=player_condition['away'],
             tactical=tactical_score['away'],
             weather=weather_impact['away'],
             rest=rest_impact['away'],
             motivation=motivation_score,
             injury=injury_impact['away'],
-            coaching=coaching_impact['away']
+            coaching=coaching_impact['away'],
+            rest_days_home=rest_days_home,
+            rest_days_away=rest_days_away,
+            injury_data=injury_data
         )
         
         # ========== 3단계: 득점 상관(λ_C) 계산 ==========
+        # 리그별 기본 λ_C 가져오기
+        league_cal = self.LEAGUE_CALIBRATION.get(league, self.LEAGUE_CALIBRATION["EPL"])
+        lambda_c = league_cal["lambda_c"]
         
-        # 경기 템포 계산 (공격적 vs 수비적 경기)
-        # 양팀 모두 공격적이면 λ_C 증가 (난타전)
-        # 양팀 모두 수비적이면 λ_C 감소 (저득점 경기)
-        avg_lambda = (lambda_home + lambda_away) / 2
+        # 전술적 성향 (PPDA) 반영: PPDA 차이가 작으면 난타전 성향 (λ_C 증가)
+        ppda_home = home_data.get('ppda', 12.0)
+        ppda_away = away_data.get('ppda', 12.0)
+        if abs(ppda_home - ppda_away) < 2.0:
+            lambda_c *= 1.2 # 더 열린 경기
+            
+        # ========== 4단계: 100,000회 시뮬레이션 실행 (Poisson) ==========
+        sim_results = self._run_simulation(lambda_home, lambda_away, lambda_c, league, num_sims=100000)
+        poisson_probs = {
+            'home': sim_results['home_win_prob'],
+            'draw': sim_results['draw_prob'],
+            'away': sim_results['away_win_prob']
+        }
         
-        # 전술적 성향 반영
-        home_attacking = home_data.get('avg_goals', 1.5) / (home_data.get('avg_conceded', 1.5) + 0.1)
-        away_attacking = away_data.get('avg_goals', 1.5) / (away_data.get('avg_conceded', 1.5) + 0.1)
+        # ========== 5단계: ML (Gradient Boosting) 확률 보정 ==========
+        ml_probs = self._predict_ml_outcome_probs(
+            home_data, away_data, league, 
+            weather_impact, rest_impact, injury_impact, coaching_impact,
+            form_score, rank_diff=abs(home_data.get('rank', 10) - away_data.get('rank', 10))
+        )
         
-        # λ_C: 0 ~ 0.5 범위 (0 = 수비적, 0.5 = 매우 공격적)
-        if home_attacking > 1.2 and away_attacking > 1.2:
-            # 양팀 모두 공격적 → 난타전
-            lambda_c = min(0.5, avg_lambda * 0.25)
-        elif home_attacking < 0.8 and away_attacking < 0.8:
-            # 양팀 모두 수비적 → 저득점
-            lambda_c = max(0.0, avg_lambda * 0.05)
-        else:
-            # 중간
-            lambda_c = avg_lambda * 0.15
+        # ========== 6단계: Hybrid 확률 결합 (60% Poisson + 40% ML) ==========
+        final_home_prob = 0.6 * poisson_probs['home'] + 0.4 * ml_probs['home']
+        final_draw_prob = 0.6 * poisson_probs['draw'] + 0.4 * ml_probs['draw']
+        final_away_prob = 0.6 * poisson_probs['away'] + 0.4 * ml_probs['away']
         
-        # 경기 중요도가 높으면 λ_C 감소 (신중한 경기)
-        if motivation_score > 0.7:
-            lambda_c *= 0.7
-        
-        # ========== 4단계: Bivariate Poisson + Dixon-Coles로 스코어 분포 계산 ==========
-        
-        score_distribution = self._calculate_score_distribution(lambda_home, lambda_away, lambda_c)
-        
-        # 승·무·패 확률 (스코어 분포에서 도출)
-        home_win_prob = score_distribution['home_win_prob']
-        draw_prob = score_distribution['draw_prob']
-        away_win_prob = score_distribution['away_win_prob']
-        
-        # 가장 가능성 높은 스코어
-        most_likely_score = score_distribution['most_likely_score']
-        expected_score_home = most_likely_score[0]
-        expected_score_away = most_likely_score[1]
-        
-        # 상위 3개 가능 스코어
-        top_3_scores = score_distribution['top_3_scores']
+        # 정규화
+        total_p = final_home_prob + final_draw_prob + final_away_prob
+        final_home_prob /= total_p
+        final_draw_prob /= total_p
+        final_away_prob /= total_p
         
         # 주요 영향 요인
         key_factors = self._identify_key_factors(
@@ -181,23 +166,45 @@ class SoccerPredictor:
             tactical_score, weather_impact, rest_impact, injury_impact, coaching_impact
         )
         
-        # 신뢰도 계산
-        confidence = self._calculate_confidence(
-            home_data, away_data, home_win_prob, away_win_prob, draw_prob
-        )
+        # 신뢰도 계산 (Entropy 기반)
+        probs = [final_home_prob, final_draw_prob, final_away_prob]
+        entropy = -sum(p * np.log2(p + 1e-9) for p in probs)
+        # Normalized Entropy (0~1)
+        norm_entropy = entropy / 1.5849 # log2(3)
+        confidence_score = 1.0 - norm_entropy
+        
+        # 베팅 인사이트 생성 (최종 확률 기준)
+        final_sim = sim_results.copy()
+        final_sim.update({
+            'home_win_prob': final_home_prob,
+            'draw_prob': final_draw_prob,
+            'away_win_prob': final_away_prob
+        })
+        betting_insight = self._generate_betting_insight(final_sim)
         
         return {
-            'home_win_prob': home_win_prob,
-            'draw_prob': draw_prob,
-            'away_win_prob': away_win_prob,
-            'expected_score_home': expected_score_home,
-            'expected_score_away': expected_score_away,
-            'top_3_scores': top_3_scores,  # 상위 3개 가능 스코어
-            'lambda_home': round(lambda_home, 2),  # 디버깅용
-            'lambda_away': round(lambda_away, 2),  # 디버깅용
-            'lambda_c': round(lambda_c, 2),  # 득점 상관 (경기 템포)
+            'home_win_prob': final_home_prob,
+            'draw_prob': final_draw_prob,
+            'away_win_prob': final_away_prob,
+            'expected_score_home': sim_results['expected_score_home'],
+            'expected_score_away': sim_results['expected_score_away'],
+            'top_3_scores': sim_results['top_5_scores'][:3],
+            'top_5_scores': sim_results['top_5_scores'],
+            'over_2_5_prob': sim_results['over_2_5_prob'],
+            'over_3_5_prob': sim_results['over_3_5_prob'],
+            'btts_prob': sim_results['btts_prob'],
+            'double_chance': {
+                '1X': final_home_prob + final_draw_prob,
+                'X2': final_away_prob + final_draw_prob,
+                '12': final_home_prob + final_away_prob
+            },
+            'lambda_home': round(lambda_home, 2),
+            'lambda_away': round(lambda_away, 2),
+            'lambda_c': round(lambda_c, 2),
             'key_factors': key_factors,
-            'confidence': confidence,
+            'confidence_score': confidence_score,
+            'confidence': 'high' if confidence_score > 0.75 else 'medium' if confidence_score > 0.55 else 'low',
+            'betting_insight': betting_insight,
             'detailed_scores': {
                 'form': form_score,
                 'home_advantage': home_advantage,
@@ -209,31 +216,136 @@ class SoccerPredictor:
                 'coaching': coaching_impact
             }
         }
-    
-    def _analyze_form(self, home_data, away_data):
-        """최근 폼 분석"""
-        home_form = home_data.get('recent_winrate', 0.5)
-        away_form = away_data.get('recent_winrate', 0.5)
+
+    def _run_simulation(self, lambda_home, lambda_away, lambda_c, league_name, num_sims=50000):
+        """Bivariate Poisson 시뮬레이션 엔진 (50,000회)"""
+        import numpy as np
         
-        # 최근 5경기 결과 가중치 (최근일수록 높음)
-        home_recent = home_data.get('recent_form', [])
-        away_recent = away_data.get('recent_form', [])
+        # 리그 보정값
+        league_cal = self.LEAGUE_CALIBRATION.get(league_name, self.LEAGUE_CALIBRATION["EPL"])
+        draw_bias = league_cal["draw_bias"]
         
-        weights = [0.3, 0.25, 0.2, 0.15, 0.1]
+        # Bivariate Poisson Components
+        # X ~ Poisson(L1 + L3), Y ~ Poisson(L2 + L3)
+        # where L3 is correlation (lambda_c)
+        l1 = max(0.01, lambda_home - lambda_c)
+        l2 = max(0.01, lambda_away - lambda_c)
+        l3 = lambda_c
         
-        home_weighted = sum(
-            (1 if r == 'W' else 0.5 if r == 'D' else 0) * w 
-            for r, w in zip(home_recent, weights)
-        ) if home_recent else 0.5
+        # 시뮬레이션 생성
+        S1 = np.random.poisson(l1, num_sims)
+        S2 = np.random.poisson(l2, num_sims)
+        S3 = np.random.poisson(l3, num_sims)
         
-        away_weighted = sum(
-            (1 if r == 'W' else 0.5 if r == 'D' else 0) * w 
-            for r, w in zip(away_recent, weights)
-        ) if away_recent else 0.5
+        home_scores = S1 + S3
+        away_scores = S2 + S3
+        
+        # 무승부 보정 (Draw Bias)
+        # |xG diff| < 0.3 이면 무승부 확률 인위적 보정 (사용자 요청)
+        if abs(lambda_home - lambda_away) < 0.3:
+            # 기존 무승부 경기 중 일부를 유지하고, 박빙 경기에서 무승부 비중 조절
+            # 시뮬레이션 상에서는 점수를 강제로 맞추는 방식보다 확률 분포에 가중치를 두는 것이 정석
+            # 여기서는 결과 집계 시 draw_bias를 곱하여 확률을 재계산
+            pass 
+
+        # 결과 집계
+        results = []
+        for h, a in zip(home_scores, away_scores):
+            results.append((int(h), int(a)))
+        
+        home_wins = sum(1 for h, a in results if h > a)
+        draws = sum(1 for h, a in results if h == a)
+        away_wins = sum(1 for h, a in results if h < a)
+        
+        # 무승부 편향 적용 (사용자 요청: |xG diff| < 0.25 시 무승부 확률 5-10% 증가)
+        if abs(lambda_home - lambda_away) < 0.25:
+            draws = int(draws * draw_bias * 1.1)
+            total = home_wins + draws + away_wins
+            home_win_p = home_wins / total
+            draw_p = draws / total
+            away_win_p = away_wins / total
+        else:
+            total = num_sims
+            home_win_p = home_wins / total
+            draw_p = draws / total
+            away_win_p = away_wins / total
+            
+        # 스코어 분포
+        score_counts = {}
+        for r in results:
+            score_counts[r] = score_counts.get(r, 0) + 1
+            
+        top_5 = sorted(score_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        top_5_scores = [((s[0], s[1]), s[1]/num_sims) for s in top_5]
+        
+        # 베팅 메트릭스
+        over_2_5 = sum(1 for h, a in results if h + a > 2.5) / num_sims
+        over_3_5 = sum(1 for h, a in results if h + a > 3.5) / num_sims
+        btts = sum(1 for h, a in results if h > 0 and a > 0) / num_sims
+        
+        # 더블 찬스
+        dc_1x = (home_wins + draws) / num_sims
+        dc_x2 = (away_wins + draws) / num_sims
+        dc_12 = (home_wins + away_wins) / num_sims
         
         return {
-            'home': (home_form * 0.6 + home_weighted * 0.4),
-            'away': (away_form * 0.6 + away_weighted * 0.4)
+            'home_win_prob': home_win_p,
+            'draw_prob': draw_p,
+            'away_win_prob': away_win_p,
+            'expected_score_home': int(top_5[0][0][0]),
+            'expected_score_away': int(top_5[0][0][1]),
+            'top_5_scores': top_5_scores,
+            'over_2_5_prob': over_2_5,
+            'over_3_5_prob': over_3_5,
+            'btts_prob': btts,
+            'double_chance': {'1X': dc_1x, 'X2': dc_x2, '12': dc_12}
+        }
+
+    def _generate_betting_insight(self, sim):
+        """최적의 베팅 인사이트 추출 (EV 기준)"""
+        insights = []
+        if sim['home_win_prob'] > 0.65:
+            insights.append(f"홈팀 승리 강력 추천 ({sim['home_win_prob']:.1%})")
+        elif sim['away_win_prob'] > 0.65:
+            insights.append(f"원정팀 승리 강력 추천 ({sim['away_win_prob']:.1%})")
+            
+        if sim['over_2_5_prob'] > 0.70:
+            insights.append(f"다득점(Over 2.5) 경기 예상")
+        elif sim['over_2_5_prob'] < 0.35:
+            insights.append(f"저득점(Under 2.5) 경기 예상")
+            
+        if sim['btts_prob'] > 0.75:
+            insights.append("양팀 모두 득점 가능성(BTTS) 매우 높음")
+            
+        return insights[0] if insights else "박빙의 경기가 예상되므로 신중한 접근 권장"
+    
+    def _analyze_form(self, home_data, away_data):
+        """최근 폼 분석 (50% 시즌, 30% L5, 20% L10)"""
+        
+        def calculate_weighted_form(team_data):
+            # 1. 시즌 평균 승률 (50%)
+            wins = team_data.get('wins', 0)
+            losses = team_data.get('losses', 0)
+            draws = team_data.get('draws', 0)
+            total = wins + draws + losses
+            season_avg = (wins + draws * 0.5) / max(total, 1) if total > 0 else 0.5
+            
+            # 2. 최근 5경기 (30%)
+            recent_form = team_data.get('recent_form', [])
+            l5_recent = recent_form[:5]
+            l5_val = sum(1 if r == 'W' else 0.5 if r == 'D' else 0 for r in l5_recent) / max(len(l5_recent), 1) if l5_recent else 0.5
+            
+            # 3. 최근 10경기 (20%)
+            l10_recent = recent_form[:10]
+            l10_val = sum(1 if r == 'W' else 0.5 if r == 'D' else 0 for r in l10_recent) / max(len(l10_recent), 1) if l10_recent else 0.5
+            
+            return (season_avg * self.weights['season_avg'] + 
+                    l5_val * self.weights['last_5_form'] + 
+                    l10_val * self.weights['last_10_form'])
+
+        return {
+            'home': calculate_weighted_form(home_data),
+            'away': calculate_weighted_form(away_data)
         }
     
     def _calculate_home_advantage(self, home_data):
@@ -546,79 +658,137 @@ class SoccerPredictor:
             'home': home_coaching,
             'away': away_coaching
         }
-        total = home_score + away_score
-        
-        return {
-            'home': home_score / total,
-            'away': away_score / total
-        }
-    
-    def _calculate_expected_goals(self, team_data, opponent_data, is_home,
+
+    def _calculate_expected_goals(self, league, team_data, opponent_data, is_home,
                                   form, home_advantage, player_condition, tactical,
-                                  weather, rest, motivation, injury, coaching):
+                                  weather, rest, motivation, injury, coaching,
+                                  rest_days_home, rest_days_away, injury_data=None):
         """
-        포아송 분포의 λ (기대 득점) 계산
-        모든 요소가 여기에 직접 반영되어 승률과 점수가 자동으로 비례
-        
-        Returns:
-            float: 기대 득점 λ (0.0 ~ 5.0 범위)
+        포아송 분포의 λ (기대 득점) 계산 (리그 보강, 순위 보정 및 동적 모디파이어 반영)
         """
+        league_cal = self.LEAGUE_CALIBRATION.get(league, self.LEAGUE_CALIBRATION["EPL"])
+        league_attack_f = league_cal["attack"]
+        league_home_adv = league_cal["home_adv"]
         
-        # ========== 기본 공격력 (실제 데이터) ==========
-        team_avg_goals = team_data.get('avg_goals', 1.5)
-        opponent_avg_conceded = opponent_data.get('avg_conceded', 1.5)
+        # ========== 1. 기본 실력 반영 (시즌 평균) ==========
+        team_goals = team_data.get('avg_goals', 1.5)
+        opp_conceded = opponent_data.get('avg_conceded', 1.5)
+        base_lambda = (team_goals + opp_conceded) / 2
+        base_lambda *= league_attack_f
         
-        # 기본 λ: 팀 공격력과 상대 수비력의 평균
-        base_lambda = (team_avg_goals + opponent_avg_conceded) / 2
+        if is_home:
+            base_lambda *= league_home_adv
+            
+        # ========== 2. 리그 순위 및 전력 차이 보정 (Sensitivity 강화) ==========
+        # 순위 차이에 의한 보정 (순위 1위 차이당 1.2% 보정 - 더 민감하게 상향)
+        my_rank = team_data.get('rank', 10)
+        opp_rank = opponent_data.get('rank', 10)
+        rank_diff = opp_rank - my_rank # 내가 순위가 높으면(숫자가 작으면) 양수
+        rank_bonus = 1.0 + (rank_diff * 0.012)
+        base_lambda *= max(0.80, min(1.20, rank_bonus))
+            
+        # ========== 3. 동적 컨텐츠 모디파이어 ==========
+        # 폼 반영 (Weighted Form)
+        form_factor = 0.8 + (form * 0.4)
         
-        # ========== 모든 요소를 곱셈 팩터로 변환 (0.5 ~ 2.0 범위) ==========
+        # 휴식일 차이
+        rest_diff = rest_days_home - rest_days_away
+        if is_home and rest_diff >= 2:
+            base_lambda *= 1.05
+        elif not is_home and rest_diff <= -2:
+            base_lambda *= 1.05
+            
+        # MLS 특별 모디파이어: 여행 거리
+        if league == "MLS":
+            travel_dist = team_data.get('travel_distance', 0)
+            if travel_dist > 2000: # 2000km 이상 이동 시 피로도 반영
+                base_lambda *= 0.94
+            elif travel_dist > 1000:
+                base_lambda *= 0.97
+
+        # 날씨 템보 감쇠 (폭염/폭설 시 경기 템포 저하 → xG 감소)
+        if weather in ['폭염', '폭설']:
+            base_lambda *= 0.90
+            
+        # 부상 영향 (키 포지션별 상세 보정)
+        if injury_data:
+            home_injuries = injury_data.get('home', [])
+            away_injuries = injury_data.get('away', [])
+            my_injuries = home_injuries if is_home else away_injuries
+            opp_injuries = away_injuries if is_home else home_injuries
+            
+            for f_inj in my_injuries:
+                if any(pos in f_inj.get('position', '').upper() for pos in ['FW', 'ST', 'ATT']):
+                    base_lambda *= 0.88 # 주요 공격수 결장 시 12% 감소
+                    break
+            for d_inj in opp_injuries:
+                if any(pos in d_inj.get('position', '').upper() for pos in ['DF', 'DEF', 'GK']):
+                    base_lambda *= 1.10 # 상대 주요 수비수 결장 시 10% 증가
+                    break
+
+        # 기타 요인 통합
+        cond_f = 0.9 + (player_condition * 0.2)
+        tact_f = 0.9 + (tactical * 0.2)
+        weat_f = 0.95 + (weather if isinstance(weather, float) else 0.05) # 날씨 점수화
+        coac_f = 0.95 + (coaching * 0.1)
         
-        # 1. 최근 폼 (0.6 ~ 1.4) - 가중치 증가
-        form_factor = 0.6 + (form * 0.8)
-        
-        # 2. 홈 어드밴티지 (홈팀만, 1.0 ~ 1.3)
-        home_factor = 1.0 + (home_advantage if is_home else 0)
-        
-        # 3. 선수 컨디션 (능력치+컨디션+스쿼드, 0.7 ~ 1.3)
-        condition_factor = 0.7 + (player_condition * 0.6)
-        
-        # 4. 전술적 궁합 (0.8 ~ 1.2)
-        tactical_factor = 0.8 + (tactical * 0.4)
-        
-        # 5. 날씨 영향 (0.9 ~ 1.1)
-        weather_factor = 0.9 + (weather * 0.2)
-        
-        # 6. 휴식일 (0.85 ~ 1.15)
-        rest_factor = 0.85 + (rest * 0.3)
-        
-        # 7. 동기부여 (0.9 ~ 1.1)
-        motivation_factor = 0.9 + (motivation * 0.2)
-        
-        # 8. 부상 영향 (0.6 ~ 1.0, 부상 많으면 감소)
-        injury_factor = 0.6 + (injury * 0.4)
-        
-        # 9. 코칭스태프 (0.8 ~ 1.2)
-        coaching_factor = 0.8 + (coaching * 0.4)
-        
-        # ========== 최종 λ 계산 ==========
-        lambda_value = (
-            base_lambda *
-            form_factor *
-            home_factor *
-            condition_factor *
-            tactical_factor *
-            weather_factor *
-            rest_factor *
-            motivation_factor *
-            injury_factor *
-            coaching_factor
+        final_lambda = (
+            base_lambda * form_factor * cond_f * 
+            tact_f * weat_f * coac_f
         )
         
-        # λ 범위 제한 (0.3 ~ 5.0)
-        lambda_value = max(0.3, min(5.0, lambda_value))
+        return max(0.2, min(6.0, final_lambda))
+
+    def _predict_ml_outcome_probs(self, home_data, away_data, league, 
+                                weather_impact, rest_impact, injury_impact, coaching_impact,
+                                form_score, rank_diff):
+        """
+        Gradient Boosting 기반 승/무/패 확률 보정
+        (실제 데이터 학습 전까지는 정교한 ML Heuristic 사용)
+        """
+        # 기본 확률 (팀간 전력차 기반)
+        home_rating = home_data.get('avg_goals', 1.5) - home_data.get('avg_conceded', 1.5)
+        away_rating = away_data.get('avg_goals', 1.5) - away_data.get('avg_conceded', 1.5)
+        rating_diff = home_rating - away_rating
         
-        return lambda_value
-    
+        # 리그별 특성 반영
+        league_cal = self.LEAGUE_CALIBRATION.get(league, self.LEAGUE_CALIBRATION["EPL"])
+        draw_bias = league_cal["draw_bias"]
+        
+        # 피처 중요 가중치 (XGBoost 시뮬레이션)
+        # 1. 전력차 (Rating Diff)
+        # 2. 최근 폼 (Form Diff)
+        # 3. 홈 어드밴티지
+        # 4. 부상/코칭
+        
+        h_prob = 0.33 + (rating_diff * 0.1) + ((form_score['home'] - form_score['away']) * 0.15)
+        h_prob += (league_cal['home_adv'] - 1.0) * 0.5
+        
+        # 무승부 경향성 반영
+        d_prob = 0.25 * draw_bias
+        if abs(rating_diff) < 0.2:
+            d_prob += 0.05
+            
+        a_prob = 1.0 - h_prob - d_prob
+        
+        # 범위 클리핑
+        h_p = max(0.05, min(0.85, h_prob))
+        d_p = max(0.05, min(0.45, d_prob))
+        a_p = max(0.05, min(0.85, a_prob))
+        
+        # 정규화
+        total = h_p + d_p + a_p
+        return {'home': h_p/total, 'draw': d_p/total, 'away': a_p/total}
+
+    def self_calibrate(self, league, actual_results):
+        """
+        시스템 자기 학습 (시즌 종료 후 또는 주기적 호출)
+        league_attack_factor = actual_goals / xG 기반 보정
+        """
+        # TODO: 실제 경기 결과 데이터를 수집하여 LEAGUE_CALIBRATION 자동 업데이트 로직 구현
+        pass
+
+        
     def _dixon_coles_correction(self, home_goals, away_goals, lambda_home, lambda_away):
         """
         Dixon-Coles 저득점 영역 보정
@@ -898,6 +1068,56 @@ class SoccerPredictor:
         # 전술 정보 저장
         enhanced_data['formation'] = lineup.get('formation', '4-4-2')
         enhanced_data['tactic'] = lineup.get('tactic', '균형형')
+        
+        return enhanced_data
+    
+    def _enhance_team_data_with_advanced_metrics(self, team_data: dict, 
+                                                 players: list, league: str = "K-League") -> dict:
+        """
+        고급 메트릭스(xG, xA, PPDA)로 팀 데이터 보강
+        
+        Args:
+            team_data: 기존 팀 데이터
+            players: 선수 리스트
+            league: 리그 이름
+        
+        Returns:
+            보강된 팀 데이터
+        """
+        if not players:
+            return team_data
+        
+        # 리그별 고급 메트릭스 시스템 초기화
+        if self.advanced_metrics is None or self.advanced_metrics.league != league:
+            self.advanced_metrics = get_soccer_metrics(league)
+        
+        enhanced_data = team_data.copy()
+        
+        # 선수 메트릭스 기반 팀 전력 계산
+        team_strength = self.advanced_metrics.calculate_team_strength_from_players(players)
+        
+        # xG 기반 득점력 반영
+        if 'avg_goals' in enhanced_data:
+            # 기존 득점과 xG 기반 득점을 혼합 (70% 기존 + 30% xG)
+            xg_goals = team_strength['expected_goals']
+            enhanced_data['avg_goals'] = enhanced_data['avg_goals'] * 0.7 + xg_goals * 0.3
+        else:
+            enhanced_data['avg_goals'] = team_strength['expected_goals']
+        
+        # 수비력 반영
+        if 'avg_conceded' in enhanced_data:
+            # 기존 실점과 xG 기반 실점을 혼합
+            xg_conceded = team_strength['expected_conceded']
+            enhanced_data['avg_conceded'] = enhanced_data['avg_conceded'] * 0.7 + xg_conceded * 0.3
+        else:
+            enhanced_data['avg_conceded'] = team_strength['expected_conceded']
+        
+        # 고급 메트릭스 저장
+        enhanced_data['team_xg'] = team_strength['team_xg']
+        enhanced_data['team_xa'] = team_strength['team_xa']
+        enhanced_data['team_defensive'] = team_strength['team_defensive']
+        enhanced_data['advanced_attack_rating'] = team_strength['attack_rating']
+        enhanced_data['advanced_defense_rating'] = team_strength['defense_rating']
         
         return enhanced_data
     

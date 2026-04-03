@@ -311,7 +311,8 @@ NBA_2026_EAST = {
         "wins": 51, "losses": 19, "win_pct": 0.729,
         "home": "26-8", "away": "25-11", "conf": "35-11",
         "ppg": 117.4, "opp_ppg": 109.5, "diff": 7.9,
-        "form": ["W", "W", "W", "L", "W"],
+        "form": ["W", "W", "W", "L", "W", "W", "W", "W", "W", "L"],  # 최근 10경기: 9승 1패
+        "last_10": "9-1",  # 최근 10경기 성적
         "head_coach": "J.B. Bickerstaff",
         "arena": "Little Caesars Arena",
         "arena_location": "Detroit, MI",
@@ -484,10 +485,13 @@ NBA_2026_WEST = {
         "arena_capacity": 18354
     },
     "Los Angeles Lakers": {
-        "wins": 45, "losses": 25, "win_pct": 0.643,
+        "wins": 46, "losses": 26, "win_pct": 0.639,
         "home": "23-12", "away": "22-13", "conf": "30-16",
-        "ppg": 116.5, "opp_ppg": 113.2, "diff": 3.3,
-        "form": ["W", "W", "W", "W", "W"],
+        "ppg": 116.4, "opp_ppg": 114.9, "diff": 1.5,
+        "form": ["W", "W", "W", "W", "W", "W", "W", "L", "L", "L"],
+        "last_10": "7-3",
+        "streak": "L3",
+        "rank": 3,  # 서부 3위
         "head_coach": "JJ Redick",
         "arena": "Crypto.com Arena",
         "arena_location": "Los Angeles, CA",
@@ -616,106 +620,106 @@ NBA_2026_WEST = {
     }
 }
 
-# EPL 2025-26 (잉글랜드)
+# EPL 2025-26 (잉글랜드) - 2026년 4월 3일 기준
 EPL_2026 = {
     "Arsenal": {
         "played": 31, "wins": 21, "draws": 7, "losses": 3,
-        "goals_for": 62, "goals_against": 24, "points": 70,
+        "goals_for": 61, "goals_against": 22, "points": 70,
         "position": 1, "form": ["W", "W", "D", "W", "W"]
     },
     "Manchester City": {
-        "played": 30, "wins": 20, "draws": 5, "losses": 5,
-        "goals_for": 64, "goals_against": 28, "points": 65,
+        "played": 30, "wins": 18, "draws": 7, "losses": 5,
+        "goals_for": 60, "goals_against": 28, "points": 61,
         "position": 2, "form": ["W", "W", "L", "W", "W"]
     },
-    "Liverpool": {
-        "played": 31, "wins": 19, "draws": 7, "losses": 5,
-        "goals_for": 58, "goals_against": 30, "points": 64,
-        "position": 3, "form": ["W", "D", "W", "L", "W"]
+    "Manchester United": {
+        "played": 31, "wins": 15, "draws": 10, "losses": 6,
+        "goals_for": 56, "goals_against": 43, "points": 55,
+        "position": 3, "form": ["W", "D", "W", "D", "W"]
     },
     "Aston Villa": {
-        "played": 31, "wins": 17, "draws": 6, "losses": 8,
-        "goals_for": 48, "goals_against": 35, "points": 57,
+        "played": 31, "wins": 16, "draws": 6, "losses": 9,
+        "goals_for": 42, "goals_against": 37, "points": 54,
         "position": 4, "form": ["W", "W", "L", "W", "W"]
     },
+    "Liverpool": {
+        "played": 31, "wins": 14, "draws": 7, "losses": 10,
+        "goals_for": 50, "goals_against": 42, "points": 49,
+        "position": 5, "form": ["L", "D", "W", "L", "W"]
+    },
     "Chelsea": {
-        "played": 30, "wins": 15, "draws": 9, "losses": 6,
-        "goals_for": 50, "goals_against": 38, "points": 54,
-        "position": 5, "form": ["D", "W", "D", "W", "L"]
-    },
-    "Manchester United": {
-        "played": 31, "wins": 15, "draws": 7, "losses": 9,
-        "goals_for": 45, "goals_against": 38, "points": 52,
-        "position": 6, "form": ["W", "L", "W", "D", "W"]
-    },
-    "Newcastle": {
-        "played": 31, "wins": 14, "draws": 8, "losses": 9,
-        "goals_for": 44, "goals_against": 40, "points": 50,
-        "position": 7, "form": ["W", "D", "L", "W", "D"]
-    },
-    "Brighton": {
-        "played": 31, "wins": 13, "draws": 10, "losses": 8,
-        "goals_for": 46, "goals_against": 42, "points": 49,
-        "position": 8, "form": ["D", "W", "D", "L", "W"]
-    },
-    "Fulham": {
         "played": 31, "wins": 13, "draws": 9, "losses": 9,
-        "goals_for": 42, "goals_against": 40, "points": 48,
-        "position": 9, "form": ["W", "D", "L", "W", "D"]
+        "goals_for": 53, "goals_against": 38, "points": 48,
+        "position": 6, "form": ["D", "W", "D", "W", "L"]
     },
     "Brentford": {
-        "played": 31, "wins": 12, "draws": 10, "losses": 9,
-        "goals_for": 44, "goals_against": 44, "points": 46,
-        "position": 10, "form": ["D", "W", "L", "D", "W"]
-    },
-    "West Ham": {
-        "played": 31, "wins": 12, "draws": 8, "losses": 11,
-        "goals_for": 38, "goals_against": 43, "points": 44,
-        "position": 11, "form": ["L", "W", "D", "L", "W"]
-    },
-    "Crystal Palace": {
-        "played": 31, "wins": 11, "draws": 10, "losses": 10,
-        "goals_for": 36, "goals_against": 40, "points": 43,
-        "position": 12, "form": ["D", "L", "W", "D", "L"]
-    },
-    "Bournemouth": {
-        "played": 31, "wins": 11, "draws": 9, "losses": 11,
-        "goals_for": 38, "goals_against": 42, "points": 42,
-        "position": 13, "form": ["W", "L", "D", "W", "L"]
+        "played": 31, "wins": 13, "draws": 7, "losses": 11,
+        "goals_for": 46, "goals_against": 42, "points": 46,
+        "position": 7, "form": ["W", "D", "W", "D", "L"]
     },
     "Everton": {
-        "played": 31, "wins": 10, "draws": 11, "losses": 10,
-        "goals_for": 34, "goals_against": 38, "points": 41,
-        "position": 14, "form": ["D", "L", "D", "W", "D"]
+        "played": 31, "wins": 13, "draws": 7, "losses": 11,
+        "goals_for": 37, "goals_against": 35, "points": 46,
+        "position": 8, "form": ["W", "D", "L", "W", "W"]
+    },
+    "Fulham": {
+        "played": 31, "wins": 13, "draws": 5, "losses": 13,
+        "goals_for": 43, "goals_against": 44, "points": 44,
+        "position": 9, "form": ["W", "D", "L", "W", "D"]
+    },
+    "Brighton": {
+        "played": 31, "wins": 11, "draws": 10, "losses": 10,
+        "goals_for": 41, "goals_against": 37, "points": 43,
+        "position": 10, "form": ["D", "W", "D", "L", "W"]
     },
     "Sunderland": {
-        "played": 31, "wins": 10, "draws": 10, "losses": 11,
-        "goals_for": 36, "goals_against": 42, "points": 40,
-        "position": 15, "form": ["L", "D", "W", "L", "D"]
+        "played": 31, "wins": 11, "draws": 10, "losses": 10,
+        "goals_for": 32, "goals_against": 36, "points": 43,
+        "position": 11, "form": ["W", "D", "L", "W", "D"]
     },
-    "Tottenham": {
-        "played": 30, "wins": 7, "draws": 9, "losses": 14,
-        "goals_for": 39, "goals_against": 46, "points": 30,
-        "position": 16, "form": ["L", "D", "L", "W", "L"]
+    "Newcastle": {
+        "played": 31, "wins": 12, "draws": 6, "losses": 13,
+        "goals_for": 44, "goals_against": 45, "points": 42,
+        "position": 12, "form": ["W", "D", "L", "W", "D"]
     },
-    "Nottingham Forest": {
-        "played": 30, "wins": 7, "draws": 8, "losses": 15,
-        "goals_for": 28, "goals_against": 43, "points": 29,
-        "position": 17, "form": ["L", "D", "L", "L", "W"]
+    "Bournemouth": {
+        "played": 31, "wins": 9, "draws": 15, "losses": 7,
+        "goals_for": 46, "goals_against": 48, "points": 42,
+        "position": 13, "form": ["D", "D", "W", "D", "L"]
+    },
+    "Crystal Palace": {
+        "played": 30, "wins": 10, "draws": 9, "losses": 11,
+        "goals_for": 33, "goals_against": 35, "points": 39,
+        "position": 14, "form": ["D", "L", "W", "D", "L"]
     },
     "Leeds United": {
-        "played": 31, "wins": 7, "draws": 7, "losses": 17,
-        "goals_for": 32, "goals_against": 52, "points": 28,
-        "position": 18, "form": ["L", "L", "W", "L", "L"]
+        "played": 31, "wins": 7, "draws": 12, "losses": 12,
+        "goals_for": 37, "goals_against": 48, "points": 33,
+        "position": 15, "form": ["D", "L", "D", "W", "L"]
+    },
+    "Nottingham Forest": {
+        "played": 31, "wins": 8, "draws": 8, "losses": 15,
+        "goals_for": 31, "goals_against": 43, "points": 32,
+        "position": 16, "form": ["L", "D", "L", "W", "L"]
+    },
+    "Tottenham": {
+        "played": 31, "wins": 7, "draws": 9, "losses": 15,
+        "goals_for": 40, "goals_against": 50, "points": 30,
+        "position": 17, "form": ["L", "D", "L", "W", "L"]
+    },
+    "West Ham": {
+        "played": 31, "wins": 7, "draws": 8, "losses": 16,
+        "goals_for": 36, "goals_against": 57, "points": 29,
+        "position": 18, "form": ["L", "W", "L", "D", "L"]
     },
     "Burnley": {
-        "played": 31, "wins": 5, "draws": 10, "losses": 16,
-        "goals_for": 28, "goals_against": 50, "points": 25,
+        "played": 31, "wins": 4, "draws": 8, "losses": 19,
+        "goals_for": 33, "goals_against": 61, "points": 20,
         "position": 19, "form": ["D", "L", "L", "D", "L"]
     },
-    "Wolverhampton": {
-        "played": 31, "wins": 2, "draws": 8, "losses": 21,
-        "goals_for": 24, "goals_against": 62, "points": 14,
+    "Wolves": {
+        "played": 31, "wins": 3, "draws": 8, "losses": 20,
+        "goals_for": 24, "goals_against": 54, "points": 17,
         "position": 20, "form": ["L", "D", "L", "L", "L"]
     }
 }
@@ -1164,99 +1168,100 @@ K_LEAGUE_2026 = {
     }
 }
 
-# KBL 2025-26 시즌 (한국 농구)
+# KBL 2025-26 시즌 (한국 농구) - 2026년 3월 27일 실시간 기준
 KBL_2026 = {
-    "울산 현대모비스": {
-        "wins": 38, "losses": 16, "win_pct": 0.704,
-        "ppg": 85.2, "opp_ppg": 79.8,
-        "position": 1, "form": ["W", "W", "W", "L", "W"],
-        "head_coach": "유재학",
-        "arena": "울산동천체육관",
-        "arena_location": "울산광역시",
-        "arena_capacity": 5454
-    },
-    "서울 SK": {
-        "wins": 36, "losses": 18, "win_pct": 0.667,
-        "ppg": 87.5, "opp_ppg": 82.1,
-        "position": 2, "form": ["W", "W", "L", "W", "W"],
-        "head_coach": "전희철",
-        "arena": "잠실학생체육관",
-        "arena_location": "서울특별시",
-        "arena_capacity": 5000
-    },
-    "수원 KT": {
-        "wins": 34, "losses": 20, "win_pct": 0.630,
-        "ppg": 84.8, "opp_ppg": 81.5,
-        "position": 3, "form": ["W", "L", "W", "W", "W"],
-        "head_coach": "송영진",
-        "arena": "수원KT소닉붐아레나",
-        "arena_location": "경기도 수원시",
-        "arena_capacity": 8000
-    },
-    "안양 정관장": {
-        "wins": 32, "losses": 22, "win_pct": 0.593,
-        "ppg": 83.6, "opp_ppg": 80.9,
-        "position": 4, "form": ["L", "W", "W", "W", "L"],
-        "head_coach": "김승기",
-        "arena": "안양실내체육관",
-        "arena_location": "경기도 안양시",
-        "arena_capacity": 4500
-    },
     "창원 LG": {
-        "wins": 30, "losses": 24, "win_pct": 0.556,
-        "ppg": 82.4, "opp_ppg": 81.2,
-        "position": 5, "form": ["W", "W", "L", "L", "W"],
+        "wins": 34, "losses": 15, "win_pct": 0.694,
+        "ppg": 77.9, "opp_ppg": 72.0,
+        "position": 1, "form": ["W", "W", "W", "L", "L"],
         "head_coach": "조동현",
         "arena": "창원실내체육관",
         "arena_location": "경상남도 창원시",
         "arena_capacity": 5000
     },
-    "고양 소노": {
-        "wins": 28, "losses": 26, "win_pct": 0.519,
-        "ppg": 81.9, "opp_ppg": 82.5,
-        "position": 6, "form": ["L", "W", "L", "W", "W"],
-        "head_coach": "김승현",
-        "arena": "고양소노아레나",
-        "arena_location": "경기도 고양시",
-        "arena_capacity": 8000
+    "안양 정관장": {
+        "wins": 32, "losses": 17, "win_pct": 0.653,
+        "ppg": 75.3, "opp_ppg": 72.2,
+        "position": 2, "form": ["W", "W", "L", "W", "W"],
+        "head_coach": "김상식",
+        "arena": "안양실내체육관",
+        "arena_location": "경기도 안양시",
+        "arena_capacity": 4500
     },
-    "서울 삼성": {
-        "wins": 26, "losses": 28, "win_pct": 0.481,
-        "ppg": 80.5, "opp_ppg": 82.8,
-        "position": 7, "form": ["L", "L", "W", "L", "W"],
-        "head_coach": "이상범",
-        "arena": "잠실실내체육관",
+    "서울 SK": {
+        "wins": 30, "losses": 18, "win_pct": 0.625,
+        "ppg": 79.0, "opp_ppg": 75.0,
+        "position": 3, "form": ["L", "W", "W", "W", "L"],
+        "head_coach": "전희철",
+        "arena": "잠실학생체육관",
         "arena_location": "서울특별시",
-        "arena_capacity": 10000
+        "arena_capacity": 5000
     },
     "원주 DB": {
-        "wins": 24, "losses": 30, "win_pct": 0.444,
-        "ppg": 79.8, "opp_ppg": 83.4,
-        "position": 8, "form": ["L", "W", "L", "L", "L"],
+        "wins": 29, "losses": 21, "win_pct": 0.580,
+        "ppg": 79.2, "opp_ppg": 79.6,
+        "position": 4, "form": ["L", "W", "W", "L", "L"],
         "head_coach": "김주성",
         "arena": "원주종합체육관",
         "arena_location": "강원도 원주시",
         "arena_capacity": 5000
     },
+    "고양 소노": {
+        "wins": 27, "losses": 23, "win_pct": 0.540,
+        "ppg": 79.6, "opp_ppg": 76.5,
+        "position": 5, "form": ["W", "W", "W", "W", "W"],
+        "head_coach": "김승기",
+        "arena": "고양소노아레나",
+        "arena_location": "경기도 고양시",
+        "arena_capacity": 8000
+    },
     "부산 KCC": {
-        "wins": 22, "losses": 32, "win_pct": 0.407,
-        "ppg": 78.6, "opp_ppg": 84.1,
-        "position": 9, "form": ["L", "L", "W", "L", "L"],
+        "wins": 25, "losses": 24, "win_pct": 0.510,
+        "ppg": 82.9, "opp_ppg": 84.4,
+        "position": 6, "form": ["W", "L", "L", "L", "W"],
         "head_coach": "전창진",
         "arena": "사직실내체육관",
         "arena_location": "부산광역시",
         "arena_capacity": 4500
     },
+    "수원 KT": {
+        "wins": 23, "losses": 26, "win_pct": 0.469,
+        "ppg": 77.4, "opp_ppg": 79.3,
+        "position": 7, "form": ["L", "W", "L", "L", "L"],
+        "head_coach": "송영진",
+        "arena": "수원KT소닉붐아레나",
+        "arena_location": "경기도 수원시",
+        "arena_capacity": 8000
+    },
+    "울산 현대모비스": {
+        "wins": 17, "losses": 32, "win_pct": 0.347,
+        "ppg": 74.7, "opp_ppg": 78.7,
+        "position": 8, "form": ["L", "L", "W", "L", "L"],
+        "head_coach": "조동현",
+        "arena": "울산동천체육관",
+        "arena_location": "울산광역시",
+        "arena_capacity": 5454
+    },
     "대구 한국가스공사": {
-        "wins": 18, "losses": 36, "win_pct": 0.333,
-        "ppg": 76.2, "opp_ppg": 85.9,
-        "position": 10, "form": ["L", "L", "L", "W", "L"],
-        "head_coach": "김기범",
+        "wins": 15, "losses": 35, "win_pct": 0.300,
+        "ppg": 75.3, "opp_ppg": 79.5,
+        "position": 9, "form": ["L", "L", "L", "W", "W"],
+        "head_coach": "강혁",
         "arena": "대구실내체육관",
         "arena_location": "대구광역시",
         "arena_capacity": 5000
+    },
+    "서울 삼성": {
+        "wins": 14, "losses": 35, "win_pct": 0.286,
+        "ppg": 79.9, "opp_ppg": 84.0,
+        "position": 10, "form": ["W", "L", "L", "L", "L"],
+        "head_coach": "김효범",
+        "arena": "잠실실내체육관",
+        "arena_location": "서울특별시",
+        "arena_capacity": 10000
     }
 }
+
 
 # V-리그 2025-26 시즌 (한국 배구 - 남자부)
 V_LEAGUE_MEN_2026 = {

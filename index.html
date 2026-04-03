@@ -1,384 +1,85 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="VIBE BOX Sports MatchSignal - 실시간 스포츠 경기 예측 및 분석 플랫폼">
-    <meta name="keywords" content="스포츠 예측, 경기 분석, NBA, MLB, EPL, 축구, 야구, 농구, 배구">
-    <title>VIBE BOX Sports MatchSignal - 실시간 스포츠 경기 예측 플랫폼</title>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Vibe Sports | AI MatchSignal (Full Streamlit)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.css" />
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        body { 
+            margin: 0; padding: 0; background-color: #0f172a; color: white; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; font-family: 'Inter', system-ui, sans-serif;
         }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        #stlite { width: 100%; height: 100vh; visibility: hidden; }
+        #loading { text-align: center; position: absolute; z-index: 10; }
+        .spinner { 
+            border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #CCFF00; 
+            border-radius: 50%; width: 60px; height: 60px; 
+            animation: spin 1s linear infinite; margin: 0 auto 30px; 
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px 0;
-            text-align: center;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        h1 {
-            font-size: 3em;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            font-size: 1.3em;
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        .hero {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 40px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .feature-card {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-        }
-
-        .feature-icon {
-            font-size: 3em;
-            margin-bottom: 15px;
-        }
-
-        .feature-title {
-            font-size: 1.5em;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .stats {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 40px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            text-align: center;
-        }
-
-        .stat-item {
-            padding: 20px;
-        }
-
-        .stat-number {
-            font-size: 3em;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 1.1em;
-            color: #666;
-            margin-top: 10px;
-        }
-
-        .cta-section {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 50px;
-            border-radius: 15px;
-            text-align: center;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 15px 40px;
-            margin: 10px;
-            font-size: 1.2em;
-            font-weight: bold;
-            text-decoration: none;
-            border-radius: 50px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: scale(1.05);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-
-        .btn-secondary {
-            background: #FFDD00;
-            color: #000;
-            border: 2px solid #000;
-        }
-
-        .btn-secondary:hover {
-            background: #FFE84D;
-            transform: scale(1.05);
-        }
-
-        .languages {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            text-align: center;
-        }
-
-        .language-flags {
-            display: flex;
-            justify-content: center;
-            gap: 30px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .language-item {
-            font-size: 1.2em;
-        }
-
-        footer {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .tech-stack {
-            background: rgba(255, 255, 255, 0.95);
-            padding: 40px;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        .tech-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .tech-item {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2em;
-            }
-
-            .subtitle {
-                font-size: 1em;
-            }
-
-            .features {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .brand { font-size: 2.2rem; font-weight: 800; color: #CCFF00; margin-bottom: 10px; text-transform: uppercase; letter-spacing: -1px; }
+        .status { font-size: 1.1rem; color: #94a3b8; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📡 VIBE BOX Sports MatchSignal</h1>
-            <p class="subtitle">실시간 스포츠 경기 예측 및 분석 플랫폼</p>
-            <p>Real-time Sports Match Prediction & Analysis Platform</p>
-        </header>
-
-        <div class="hero">
-            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">
-                AI 기반 스포츠 경기 예측의 새로운 기준
-            </h2>
-            <p style="text-align: center; font-size: 1.2em; color: #666;">
-                실시간 데이터 수집, 선수 컨디션 분석, 부상 정보 통합으로<br>
-                가장 정확한 경기 예측을 제공합니다.
-            </p>
-        </div>
-
-        <div class="stats">
-            <h2 style="text-align: center; color: #667eea; margin-bottom: 30px;">프로젝트 통계</h2>
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="stat-number">11</div>
-                    <div class="stat-label">지원 리그</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number">5</div>
-                    <div class="stat-label">다국어 지원</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number">455+</div>
-                    <div class="stat-label">부상 선수 추적</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number">1000+</div>
-                    <div class="stat-label">실시간 선수 데이터</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="features">
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <h3 class="feature-title">경기 예측</h3>
-                <p>AI 기반 알고리즘으로 승률, 예상 스코어, 신뢰도를 실시간 분석합니다.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">📈</div>
-                <h3 class="feature-title">팀 분석</h3>
-                <p>최근 폼, 강점/약점, 코칭스태프 정보를 종합적으로 분석합니다.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">👤</div>
-                <h3 class="feature-title">선수 분석</h3>
-                <p>개별 선수의 컨디션, 통계, 부상 상태를 실시간으로 추적합니다.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">📅</div>
-                <h3 class="feature-title">경기 일정</h3>
-                <p>ESPN API를 통해 실시간 경기 일정과 결과를 제공합니다.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">🏥</div>
-                <h3 class="feature-title">부상 리포트</h3>
-                <p>모든 리그의 부상 선수 정보를 실시간으로 업데이트합니다.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon">👔</div>
-                <h3 class="feature-title">코칭스태프</h3>
-                <p>각 팀의 감독 및 코치진 정보를 상세히 제공합니다.</p>
-            </div>
-        </div>
-
-        <div class="languages">
-            <h2 style="color: #667eea; margin-bottom: 20px;">🌍 다국어 지원</h2>
-            <p>5개 언어로 전 세계 사용자에게 서비스를 제공합니다</p>
-            <div class="language-flags">
-                <div class="language-item">🇰🇷 한국어</div>
-                <div class="language-item">🇺🇸 English</div>
-                <div class="language-item">🇯🇵 日本語</div>
-                <div class="language-item">🇨🇳 中文</div>
-                <div class="language-item">🇪🇸 Español</div>
-            </div>
-        </div>
-
-        <div class="tech-stack">
-            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">🛠️ 기술 스택</h2>
-            <div class="tech-grid">
-                <div class="tech-item">Python</div>
-                <div class="tech-item">Streamlit</div>
-                <div class="tech-item">Pandas</div>
-                <div class="tech-item">NumPy</div>
-                <div class="tech-item">Scikit-learn</div>
-                <div class="tech-item">XGBoost</div>
-                <div class="tech-item">LightGBM</div>
-                <div class="tech-item">BeautifulSoup</div>
-                <div class="tech-item">Selenium</div>
-                <div class="tech-item">ESPN API</div>
-                <div class="tech-item">QR Code</div>
-                <div class="tech-item">Pillow</div>
-            </div>
-        </div>
-
-        <div class="cta-section">
-            <h2 style="color: #667eea; margin-bottom: 20px;">지금 바로 시작하세요!</h2>
-            <p style="font-size: 1.2em; margin-bottom: 30px;">
-                실시간 스포츠 경기 예측으로 더 나은 분석을 경험하세요
-            </p>
-            <a href="#" class="btn btn-primary">🚀 앱 실행하기</a>
-            <a href="https://qr.kakaopay.com/FHucxWATA" target="_blank" class="btn btn-secondary">☕ 커피 후원하기</a>
-        </div>
-
-        <div class="hero">
-            <h2 style="text-align: center; color: #667eea; margin-bottom: 20px;">지원 리그</h2>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
-                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <h3>⚽ 축구</h3>
-                    <p>EPL, La Liga, Bundesliga, Serie A, K리그1</p>
-                </div>
-                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <h3>⚾ 야구</h3>
-                    <p>MLB, KBO</p>
-                </div>
-                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <h3>🏀 농구</h3>
-                    <p>NBA, KBL</p>
-                </div>
-                <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <h3>🏐 배구</h3>
-                    <p>V-리그 남자, V-리그 여자</p>
-                </div>
-            </div>
-        </div>
-
-        <footer>
-            <h3 style="color: #667eea; margin-bottom: 15px;">📡 VIBE BOX Sports MatchSignal</h3>
-            <p>실시간 스포츠 경기 예측 및 분석 플랫폼</p>
-            <p style="margin-top: 15px; color: #999;">
-                ⚠️ 본 시스템은 참고용 분석 도구입니다. 투자 결정에 대한 책임은 사용자에게 있습니다.
-            </p>
-            <p style="margin-top: 15px; color: #666;">
-                © 2026 VIBE BOX Sports MatchSignal. All rights reserved.
-            </p>
-        </footer>
+    <div id="loading">
+        <div class="brand">VIBE BOX SPORTS</div>
+        <div class="spinner"></div>
+        <p style="font-size: 1.3rem; font-weight: 700;">시스템 배포 중... (모든 리그 지원)</p>
+        <p class="status" id="statusText">프로젝트 매니페스트(68개 모듈)를 불러오는 중...</p>
     </div>
+    <div id="stlite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.js"></script>
+    <script>
+        async function loadApp() {
+            const statusText = document.getElementById('statusText');
+            try {
+                // 1. Fetch the manifest
+                statusText.innerText = "데이터 파일 로딩 중 (1.4MB)...";
+                const response = await fetch('stlite-manifest.json');
+                if (!response.ok) throw new Error('매니페스트 파일을 찾을 수 없습니다.');
+                const filesRaw = await response.json();
+
+                // 2. Format files for stlite
+                statusText.innerText = "Python 가상 파일 시스템 구축 중...";
+                const stliteFiles = {};
+                for (const [path, data] of Object.entries(filesRaw)) {
+                    if (typeof data === 'object' && data.content) {
+                        if (data.encoding === 'base64') {
+                            stliteFiles[path] = { "data": data.content };
+                        } else {
+                            stliteFiles[path] = data.content;
+                        }
+                    } else {
+                        stliteFiles[path] = data;
+                    }
+                }
+
+                // 3. Mount Streamlit
+                statusText.innerText = "Python 환경 부팅 중 (약 10초)...";
+                stlite.mount({
+                    requirements: ["streamlit", "pandas", "numpy", "scipy", "pillow", "beautifulsoup4", "lxml", "qrcode"],
+                    entrypoint: "app.py",
+                    files: stliteFiles,
+                }, document.getElementById("stlite"));
+
+                // Show stlite once it's likely ready
+                setTimeout(() => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('stlite').style.visibility = 'visible';
+                }, 8000);
+
+            } catch (err) {
+                console.error(err);
+                statusText.innerHTML = `<span style="color: #ef4444;">오류 발생: ${err.message}</span><br>파일이 모두 업로드되었는지 확인하세요.`;
+            }
+        }
+
+        loadApp();
+    </script>
 </body>
 </html>

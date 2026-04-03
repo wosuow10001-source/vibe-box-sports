@@ -2,6 +2,7 @@
 데이터 수집 모듈
 - 팀 통계, 선수 데이터, 경기 기록 수집
 - 웹 크롤링 및 API 연동
+- 선수 고급 메트릭스 통합
 """
 
 import pandas as pd
@@ -10,7 +11,12 @@ from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
 import json
+import time
+from datetime import datetime, timedelta
+import os
+import sys
 from pathlib import Path
+from modules.player_data_loader import get_player_loader
 
 
 class DataCollector:
@@ -31,6 +37,9 @@ class DataCollector:
         
         # 디버그 모드
         self.debug = False
+        
+        # 선수 데이터 로더
+        self.player_loader = get_player_loader()
     
     def clear_cache(self):
         """캐시 초기화"""
@@ -39,7 +48,7 @@ class DataCollector:
         self.matches_cache = {}
         self.cache_timestamps = {}
         if self.debug:
-            print("🔄 캐시 초기화 완료")
+            print("[REFRESH] 캐시 초기화 완료")
     
     def _is_cache_expired(self, cache_key: str) -> bool:
         """캐시가 만료되었는지 확인"""
@@ -90,10 +99,18 @@ class DataCollector:
             "Bundesliga": ["Bayern Munich", "Borussia Dortmund", "TSG Hoffenheim", "VfB Stuttgart", 
                           "RB Leipzig", "Bayer Leverkusen", "Eintracht Frankfurt", "SC Freiburg"],
             "Serie A": ["Inter Milan", "AC Milan", "Napoli", "Como", "Juventus", "Roma", "Atalanta", "Bologna"],
-            "EPL": ["Liverpool", "Arsenal", "Manchester City", "Aston Villa", "Tottenham", 
-                   "Chelsea", "Manchester United", "Newcastle"],
-            "NBA East": ["Boston Celtics", "Cleveland Cavaliers", "New York Knicks", "Milwaukee Bucks"],
-            "NBA West": ["Oklahoma City Thunder", "Denver Nuggets", "Memphis Grizzlies"],
+            "EPL": ["Arsenal", "Manchester City", "Manchester United", "Aston Villa", "Liverpool", 
+                   "Chelsea", "Brentford", "Everton", "Fulham", "Brighton", 
+                   "Sunderland", "Newcastle", "Bournemouth", "Crystal Palace", "Leeds United", 
+                   "Nottingham Forest", "Tottenham", "West Ham", "Burnley", "Wolves"],
+            "NBA East": ["Boston Celtics", "Milwaukee Bucks", "New York Knicks", "Cleveland Cavaliers", 
+                         "Orlando Magic", "Indiana Pacers", "Philadelphia 76ers", "Miami Heat", 
+                         "Chicago Bulls", "Atlanta Hawks", "Brooklyn Nets", "Toronto Raptors", 
+                         "Charlotte Hornets", "Washington Wizards", "Detroit Pistons"],
+            "NBA West": ["Oklahoma City Thunder", "Denver Nuggets", "Minnesota Timberwolves", "LA Clippers",
+                         "Dallas Mavericks", "Phoenix Suns", "New Orleans Pelicans", "Los Angeles Lakers",
+                         "Sacramento Kings", "Golden State Warriors", "Houston Rockets", "Utah Jazz",
+                         "Memphis Grizzlies", "San Antonio Spurs", "Portland Trail Blazers"],
             "MLB": ["New York Yankees", "Los Angeles Dodgers", "Boston Red Sox", "Houston Astros", 
                    "Atlanta Braves", "Philadelphia Phillies", "San Diego Padres", "New York Mets",
                    "Toronto Blue Jays", "Seattle Mariners", "Texas Rangers", "Tampa Bay Rays",
@@ -102,10 +119,17 @@ class DataCollector:
                    "St. Louis Cardinals", "Milwaukee Brewers", "Chicago Cubs", "Cincinnati Reds",
                    "Pittsburgh Pirates", "Arizona Diamondbacks", "San Francisco Giants", "Colorado Rockies",
                    "Miami Marlins", "Washington Nationals"],
-            "K리그1": ["울산", "전북", "포항", "수원FC", "인천", "대구", "제주", "강원", "서울", "광주", "대전", "김천"],
+            "K리그1": ["서울", "울산", "전북", "대전", "부천", "광주", "안양", "김천", "인천", "강원", "포항", "제주"],
+            "MLS": ["Inter Miami", "Columbus Crew", "FC Cincinnati", "Los Angeles FC",
+                   "LA Galaxy", "Real Salt Lake", "Colorado Rapids", "Houston Dynamo",
+                   "St. Louis City", "Minnesota United", "Portland Timbers", "Seattle Sounders",
+                   "Austin FC", "Dallas FC", "Nashville SC", "New York Red Bulls",
+                   "New York City FC", "Philadelphia Union", "Atlanta United", "Charlotte FC",
+                   "Chicago Fire", "D.C. United", "CF Montréal", "New England Revolution",
+                   "Orlando City", "Toronto FC", "Vancouver Whitecaps", "San Jose Earthquakes",
+                   "Sporting Kansas City"],
             "KBO": ["KIA", "SSG", "LG", "두산", "KT", "롯데", "삼성", "NC", "한화", "키움"],
-            "KBL": ["울산 현대모비스", "서울 SK", "수원 KT", "창원 LG", "안양 정관장", 
-                   "고양 소노", "대구 한국가스공사", "원주 DB", "서울 삼성", "부산 KCC"],
+            "KBL": ["MOBIS", "SK", "KT", "LG", "JKJ", "SONO", "KOGAS", "DB", "SAMSUNG", "KCC"],
             "V-리그 남자": ["대한항공", "현대캐피탈", "삼성화재", "OK금융그룹", "한국전력", "우리카드", "KB손해보험"],
             "V-리그 여자": ["흥국생명", "현대건설", "GS칼텍스", "한국도로공사", "정관장", "IBK기업은행", "페퍼저축은행"],
         }
@@ -119,22 +143,47 @@ class DataCollector:
         cache_key = f"{self.league}_{team_name}"
         
         if cache_key in self.teams_cache:
-            return self.teams_cache[cache_key]
-        
-        # 1차 시도: 실시간 데이터 수집
-        real_stats = None
-        try:
-            from modules.live_data_fetcher import get_live_fetcher
-            
-            live_fetcher = get_live_fetcher()
-            real_stats = live_fetcher.fetch_team_stats(self.league, team_name)
-            
-            if real_stats and 'wins' in real_stats:
+            cached_data = self.teams_cache[cache_key]
+            # 10분(600초) TTL 적용
+            cache_time = cached_data.get('_cache_time', 0)
+            if time.time() - cache_time < 600:
+                return cached_data
+            else:
                 if self.debug:
-                    print(f"[OK] {team_name} 실시간 데이터 로드 성공")
-        except Exception as e:
-            if self.debug:
-                print(f"[WARNING] {team_name} 실시간 데이터 수집 실패: {e}")
+                    print(f"[INFO] {team_name} 캐시 만료 (10분 경과) - 재수집 진행")
+        
+        # KBL 전용 독립 데이터 파이프라인 (웹 스크래핑 기반)
+        real_stats = None
+        if self.league == "KBL":
+            try:
+                if not hasattr(self, 'kbl_fetcher'):
+                    from modules.kbl_data_fetcher import KBLDataFetcher
+                    self.kbl_fetcher = KBLDataFetcher()
+                    self.kbl_dataset = self.kbl_fetcher.build_team_dataset()
+                
+                if hasattr(self, 'kbl_dataset'):
+                    norm_name = self.kbl_fetcher.normalize_team(team_name)
+                    if norm_name in self.kbl_dataset:
+                        real_stats = self.kbl_dataset[norm_name].copy()
+                        if self.debug:
+                            print(f"[OK] {team_name} (norm: {norm_name}) KBL 크롤러 데이터 로드 성공")
+            except Exception as e:
+                if self.debug: print(f"[WARNING] KBL 크롤러 연동 실패: {e}")
+        
+        # 1차 시도: 실시간 데이터 수집 (KBL이 아닌 경우 혹은 실패한 경우)
+        if not real_stats:
+            try:
+                from modules.live_data_fetcher import get_live_fetcher
+                
+                live_fetcher = get_live_fetcher()
+                real_stats = live_fetcher.fetch_team_stats(self.league, team_name)
+                
+                if real_stats and 'wins' in real_stats:
+                    if self.debug:
+                        print(f"[OK] {team_name} 실시간 데이터 로드 성공")
+            except Exception as e:
+                if self.debug:
+                    print(f"[WARNING] {team_name} 실시간 데이터 수집 실패: {e}")
         
         # 2차 시도: 로컬 데이터 로드
         if not real_stats:
@@ -163,15 +212,21 @@ class DataCollector:
             players = self.get_players(team_name)
             player_ratings = []
             player_conditions = []
+            star_ppg_list = []
             
             for player_name in players[:15]:  # 주전 15명
                 player_data = self.get_player_data(player_name, team_name)
                 if player_data:
                     player_ratings.append(player_data.get('rating_avg', 7.0))
                     player_conditions.append(player_data.get('condition', 80))
+                    if 'ppg' in player_data:
+                        star_ppg_list.append(player_data['ppg'])
             
             avg_player_rating = np.mean(player_ratings) if player_ratings else 7.0
             avg_player_condition = np.mean(player_conditions) if player_conditions else 80
+            
+            star_ppg_list.sort(reverse=True)
+            star_power_ppg = sum(star_ppg_list[:3]) if star_ppg_list else 0
             
             # 실제 데이터를 시스템 형식으로 변환
             # MLB 데이터 먼저 확인 (runs_for/runs_against 사용)
@@ -216,14 +271,19 @@ class DataCollector:
                     'away_winrate': (wins / total_matches * 0.85) if total_matches > 0 else 0,
                     'avg_goals': real_stats['goals_for'] / total_matches,
                     'avg_conceded': real_stats['goals_against'] / total_matches,
+                    'xg': real_stats.get('xg', real_stats['goals_for'] / total_matches),
+                    'xga': real_stats.get('xga', real_stats['goals_against'] / total_matches),
+                    'ppda': real_stats.get('ppda', 12.0),
+                    'travel_distance': real_stats.get('travel_distance', 0) if self.league == "MLS" else 0,
                     'recent_form': real_stats.get('form', ['W', 'W', 'W', 'D', 'L']),
-                    'possession_avg': 50 + (real_stats['points'] / total_matches - 1.5) * 5,
+                    'possession_avg': real_stats.get('possession', 50 + (real_stats['points'] / total_matches - 1.5) * 5),
                     'shots_avg': real_stats['goals_for'] / total_matches * 5,
                     'pass_accuracy': 75 + (real_stats['points'] / total_matches - 1) * 5,
                     'recent_matches': self._generate_recent_matches_from_real(real_stats),
                     'real_data': True,
                     'position': real_stats.get('position', 10),
                     'points': real_stats.get('points', 0),
+                    'rank': real_stats.get('position', 10),
                     # 선수 능력치 추가
                     'avg_player_rating': avg_player_rating,
                     'avg_player_condition': avg_player_condition,
@@ -250,6 +310,8 @@ class DataCollector:
                     'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0) * 0.9,
                     'avg_goals': avg_sets_won,
                     'avg_conceded': avg_sets_lost,
+                    'ppg': real_stats.get('ppg', avg_sets_won),  # NBA 평균 득점
+                    'opp_ppg': real_stats.get('opp_ppg', avg_sets_lost),  # NBA 평균 실점
                     'recent_form': real_stats.get('form', ['W', 'W', 'L', 'W', 'W']),
                     'possession_avg': 50,
                     'shots_avg': avg_sets_won / 2 if avg_sets_won > 0 else 0,
@@ -258,11 +320,43 @@ class DataCollector:
                     'real_data': True,
                     'wins': real_stats['wins'],
                     'losses': real_stats['losses'],
+                    'home': real_stats.get('home', '0-0'),  # 홈 전적
+                    'away': real_stats.get('away', '0-0'),  # 원정 전적
+                    'diff': real_stats.get('diff', 0),  # 득실차
+                    'rank': real_stats.get('rank', real_stats.get('position', 0)),  # 순위
+                    'avg_points': real_stats.get('avg_points', avg_sets_won),
+                    'avg_allowed': real_stats.get('avg_allowed', avg_sets_lost),
+                    'win_pct': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0),
+                    # 최근 10경기 및 스트레이크 정보 반영
+                    'last_10': real_stats.get('last_10', f"{sum(1 for r in real_stats.get('form', [])[:10] if r == 'W')}-{sum(1 for r in real_stats.get('form', [])[:10] if r == 'L')}"),
+                    'streak': real_stats.get('streak', ''),
+                    'last_10_wins': 0,
+                    'last_10_losses': 0,
+                    # ... 아래에서 파싱함
+                }
+                
+                # last_10 문자열 파싱 (예: "8-2")
+                if 'last_10' in data and '-' in data['last_10']:
+                    try:
+                        w, l = map(int, data['last_10'].split('-'))
+                        data['last_10_wins'] = w
+                        data['last_10_losses'] = l
+                    except:
+                        data['last_10_wins'] = sum(1 for r in real_stats.get('form', [])[:10] if r == 'W')
+                        data['last_10_losses'] = sum(1 for r in real_stats.get('form', [])[:10] if r == 'L')
+                else:
+                    data['last_10_wins'] = sum(1 for r in real_stats.get('form', [])[:10] if r == 'W')
+                    data['last_10_losses'] = sum(1 for r in real_stats.get('form', [])[:10] if r == 'L')
+
+                data.update({
+                    # 캐시 시간 기록
+                    '_cache_time': time.time(),
                     # 선수 능력치 추가
                     'avg_player_rating': avg_player_rating,
                     'avg_player_condition': avg_player_condition,
+                    'star_power_ppg': star_power_ppg,
                     'squad_depth': len(players)
-                }
+                })
                 
                 # 배구 추가 정보
                 if 'sets_won' in real_stats:
@@ -270,6 +364,8 @@ class DataCollector:
                     data['sets_lost'] = real_stats['sets_lost']
             
             self.teams_cache[cache_key] = data
+            if self.debug:
+                print(f"FINAL DATA for {team_name}:", data)
             return data
         
         # 실제 데이터 없으면 시뮬레이션 데이터 생성
@@ -413,45 +509,146 @@ class DataCollector:
         
         return matches
     
+    def validate_players(self, players):
+        """데이터 무결성 검증 - 가짜 데이터 방지"""
+        if players is None:
+            return []
+        if not isinstance(players, list):
+            return []
+        if len(players) == 0:
+            return []
+        return players
+
     def get_players(self, team_name):
         """팀의 선수 목록 반환 - RosterFetcher 우선, 실패 시 로컬 데이터"""
+        if self.league == "MLS":
+            use_player_data = False
+        else:
+            use_player_data = True
+            
+        if not use_player_data:
+            if self.debug:
+                print(f"[WARNING] No player data available for MLS - {team_name}")
+            return []
+            
+
         cache_key = f"players_{self.league}_{team_name}"
         
         # 캐시 만료 확인 (1시간)
         if cache_key in self.players_cache and not self._is_cache_expired(cache_key):
             if self.debug:
-                print(f"✅ {team_name} 선수 캐시 사용 (유효)")
-            return self.players_cache[cache_key]
+                print(f"[OK] {team_name} 선수 캐시 사용 (유효)")
+            # 중요: 캐시에서 반환할 때도 deep copy!
+            import copy
+            return copy.deepcopy(self.players_cache[cache_key])
         
         if self.debug:
-            print(f"🔍 {team_name} 선수 데이터 로드 시도... (캐시 만료 또는 없음)")
+            print(f"[SEARCH] {team_name} 선수 데이터 로드 시도... (캐시 만료 또는 없음)")
         
         # 1. RosterFetcher로 실시간 선수 데이터 가져오기 시도
         try:
             from modules.roster_fetcher import RosterFetcher
             
             if self.debug:
-                print(f"📡 RosterFetcher로 {team_name} 선수 데이터 가져오는 중...")
+                print(f"[FETCH] RosterFetcher로 {team_name} 선수 데이터 가져오는 중...")
             
-            fetcher = RosterFetcher(league=self.league)
+            # NBA East/West는 NBA로 통합하여 RosterFetcher에 전달
+            fetch_league = "NBA" if self.league.startswith("NBA") else self.league
+            fetcher = RosterFetcher(league=fetch_league)
             real_players = fetcher.fetch_team_roster(team_name)
             
             if real_players and len(real_players) > 0:
+                # 선수들을 rating 기준으로 내림차순 정렬 (최고 스탯 선수가 UI 먼저 노출되도록)
+                real_players.sort(key=lambda x: x.get('rating', 0), reverse=True)
                 player_names = [f"{p['name']} ({p['position']})" for p in real_players]
-                self.players_cache[cache_key] = player_names
+                # 중요: 캐시에 저장할 때도 deep copy!
+                import copy
+                self.players_cache[cache_key] = copy.deepcopy(player_names)
                 self._update_cache_timestamp(cache_key)
                 if self.debug:
-                    print(f"✅ {team_name} RosterFetcher 선수 {len(player_names)}명 로드 완료")
+                    print(f"[OK] {team_name} RosterFetcher 선수 {len(player_names)}명 로드 완료")
                     print(f"   첫 3명: {player_names[:3]}")
                 return player_names
             else:
                 if self.debug:
-                    print(f"⚠️ {team_name} RosterFetcher 데이터 없음, 로컬 데이터 시도...")
+                    print(f"[WARNING] {team_name} RosterFetcher 데이터 없음, 로컬 데이터 시도...")
         except Exception as e:
             if self.debug:
-                print(f"⚠️ RosterFetcher 실패: {e}, 로컬 데이터 시도...")
+                print(f"[WARNING] RosterFetcher 실패: {e}, 로컬 데이터 시도...")
         
-        # 2. 로컬 데이터로 선수 데이터 가져오기 시도
+        # 2. 로컬 로스터 데이터로 선수 데이터 가져오기 시도 (KBO, KBL, K리그, V리그)
+        try:
+            import sys
+            from pathlib import Path
+            
+            # 데이터 경로 추가
+            data_path = Path(__file__).parent.parent / "data"
+            if str(data_path) not in sys.path:
+                sys.path.insert(0, str(data_path))
+            
+            real_players = None
+            
+            # 리그별 로스터 데이터 로드
+            if self.league == 'KBO':
+                from kbo_rosters_complete_2026 import KBO_ROSTERS_2026
+                import copy
+                
+                # 팀명 변환: "KIA 타이거즈" -> "KIA"
+                short_team_name = team_name
+                for key in KBO_ROSTERS_2026.keys():
+                    if key in team_name:
+                        short_team_name = key
+                        break
+                
+                # 깊은 복사로 원본 데이터 보호
+                real_players = copy.deepcopy(KBO_ROSTERS_2026.get(short_team_name, []))
+                if self.debug:
+                    print(f"[SEARCH] KBO 로스터 검색: '{team_name}' -> '{short_team_name}'")
+            elif self.league == 'KBL':
+                from kbl_rosters_complete_2025_26 import KBL_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                real_players = copy.deepcopy(KBL_ROSTERS_2025_26.get(team_name, []))
+                if self.debug:
+                    print(f"[SEARCH] KBL 로스터 검색: '{team_name}'")
+            elif self.league == 'K리그1':
+                from kleague_rosters_complete_2026 import KLEAGUE_ROSTERS_2026
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                real_players = copy.deepcopy(KLEAGUE_ROSTERS_2026.get(team_name, []))
+                if self.debug:
+                    print(f"[SEARCH] K리그1 로스터 검색: '{team_name}'")
+            elif self.league == 'V-리그 남자':
+                from vleague_rosters_complete_2025_26 import VLEAGUE_MEN_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                real_players = copy.deepcopy(VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, []))
+            elif self.league == 'V-리그 여자':
+                from vleague_rosters_complete_2025_26 import VLEAGUE_WOMEN_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                real_players = copy.deepcopy(VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, []))
+            
+            if real_players and len(real_players) > 0:
+                player_names = [f"{p['name']} ({p['position']})" for p in real_players]
+                # 중요: 캐시에 저장할 때도 deep copy!
+                import copy
+                self.players_cache[cache_key] = copy.deepcopy(player_names)
+                self._update_cache_timestamp(cache_key)
+                if self.debug:
+                    print(f"[OK] {team_name} 로컬 로스터 {len(player_names)}명 로드 완료")
+                    print(f"   첫 3명: {player_names[:3]}")
+                return player_names
+            else:
+                if self.debug:
+                    print(f"[WARNING] {team_name} 로컬 로스터 데이터 없음")
+        except Exception as e:
+            if self.debug:
+                print(f"[ERROR] 로컬 로스터 데이터 로드 실패: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 3. players_2026 모듈로 선수 데이터 가져오기 시도 (백업)
         try:
             import sys
             from pathlib import Path
@@ -472,43 +669,34 @@ class DataCollector:
             
             if real_players and len(real_players) > 0:
                 player_names = [f"{p['name']} ({p['position']})" for p in real_players]
-                self.players_cache[cache_key] = player_names
+                # 중요: 캐시에 저장할 때도 deep copy!
+                import copy
+                self.players_cache[cache_key] = copy.deepcopy(player_names)
                 self._update_cache_timestamp(cache_key)
                 if self.debug:
-                    print(f"✅ {team_name} 로컬 선수 {len(player_names)}명 로드 완료")
+                    print(f"[OK] {team_name} players_2026 선수 {len(player_names)}명 로드 완료")
                     print(f"   첫 3명: {player_names[:3]}")
                 return player_names
             else:
                 if self.debug:
-                    print(f"⚠️ {team_name} 선수 데이터 없음 (빈 리스트)")
+                    print(f"[WARNING] {team_name} players_2026 선수 데이터 없음 (빈 리스트)")
         except Exception as e:
             if self.debug:
-                print(f"❌ 로컬 선수 데이터 로드 실패: {e}")
+                print(f"[ERROR] players_2026 선수 데이터 로드 실패: {e}")
                 import traceback
                 traceback.print_exc()
         
-        # 시뮬레이션 선수 목록
+        # 4. 데이터가 없는 경우 빈 리스트 반환 (가짜 데이터 생성 금지)
         if self.debug:
-            print(f"⚠️ {team_name} 시뮬레이션 선수 데이터 생성 중...")
+            print(f"[WARNING] No player data available for {self.league} - {team_name}")
         
-        positions = {
-            "축구": ["GK", "DF", "MF", "FW"],
-            "야구": ["투수", "포수", "내야수", "외야수"],
-            "농구": ["가드", "포워드", "센터"],
-            "배구": ["세터", "아웃사이드", "미들블로커", "리베로"]
-        }
-        
-        pos_list = positions.get(self.sport, ["선수"])
         players = []
+        players = self.validate_players(players)
         
-        for i in range(20):
-            pos = np.random.choice(pos_list)
-            players.append(f"{pos} 선수{i+1}")
-        
-        self.players_cache[cache_key] = players
+        # 중요: 캐시에 저장할 때도 deep copy!
+        import copy
+        self.players_cache[cache_key] = copy.deepcopy(players)
         self._update_cache_timestamp(cache_key)
-        if self.debug:
-            print(f"⚠️ {team_name} 시뮬레이션 선수 데이터 사용 (20명)")
         return players
     
     def get_player_data(self, player_name, team_name):
@@ -524,7 +712,8 @@ class DataCollector:
             real_player = fetcher.get_player_info(clean_name, team_name)
             
             if real_player:
-                print(f"✅ {clean_name} RosterFetcher 데이터 로드 완료")
+                if self.debug:
+                    print(f"[OK] {clean_name} RosterFetcher 데이터 로드 완료")
                 # 실제 데이터를 시스템 형식으로 변환
                 if 'ppg' in real_player:  # NBA 선수
                     return {
@@ -588,9 +777,100 @@ class DataCollector:
                         'real_data': True
                     }
         except Exception as e:
-            print(f"⚠️ RosterFetcher 실패 ({clean_name}): {e}")
+            if self.debug:
+                print(f"[WARNING] RosterFetcher 실패 ({clean_name}): {e}")
         
-        # 2. 로컬 데이터로 선수 데이터 로드 시도
+        # 2. 로컬 로스터 데이터에서 선수 정보 가져오기 (KBO, KBL, K리그, V리그)
+        try:
+            import sys
+            from pathlib import Path
+            
+            # 데이터 경로 추가
+            data_path = Path(__file__).parent.parent / "data"
+            if str(data_path) not in sys.path:
+                sys.path.insert(0, str(data_path))
+            
+            real_player = None
+            
+            # 리그별 로스터 데이터에서 선수 찾기
+            if self.league == 'KBO':
+                from kbo_rosters_complete_2026 import KBO_ROSTERS_2026
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                team_roster = copy.deepcopy(KBO_ROSTERS_2026.get(team_name, []))
+                for player in team_roster:
+                    if player['name'] == clean_name:
+                        real_player = player
+                        break
+                if self.debug:
+                    if real_player:
+                        print(f"[OK] {clean_name} KBO 로스터 데이터 로드 완료")
+                    else:
+                        print(f"[WARNING] {clean_name} KBO 로스터에서 찾을 수 없음")
+            elif self.league == 'KBL':
+                from kbl_rosters_complete_2025_26 import KBL_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                team_roster = copy.deepcopy(KBL_ROSTERS_2025_26.get(team_name, []))
+                for player in team_roster:
+                    if player['name'] == clean_name:
+                        real_player = player
+                        break
+            elif self.league == 'K리그1':
+                from kleague_rosters_complete_2026 import KLEAGUE_ROSTERS_2026
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                team_roster = copy.deepcopy(KLEAGUE_ROSTERS_2026.get(team_name, []))
+                for player in team_roster:
+                    if player['name'] == clean_name:
+                        real_player = player
+                        break
+            elif self.league == 'V-리그 남자':
+                from vleague_rosters_complete_2025_26 import VLEAGUE_MEN_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                team_roster = copy.deepcopy(VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, []))
+                for player in team_roster:
+                    if player['name'] == clean_name:
+                        real_player = player
+                        break
+            elif self.league == 'V-리그 여자':
+                from vleague_rosters_complete_2025_26 import VLEAGUE_WOMEN_ROSTERS_2025_26
+                import copy
+                # 깊은 복사로 원본 데이터 보호
+                team_roster = copy.deepcopy(VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, []))
+                for player in team_roster:
+                    if player['name'] == clean_name:
+                        real_player = player
+                        break
+            
+            if real_player:
+                # 로스터 데이터를 시스템 형식으로 변환
+                return {
+                    'name': real_player['name'],
+                    'team': team_name,
+                    'age': real_player.get('age', 25),
+                    'position': real_player['position'],
+                    'matches_played': 100,  # 시즌 진행 중
+                    'minutes_played': 0,
+                    'goals': 0,
+                    'assists': 0,
+                    'yellow_cards': 0,
+                    'red_cards': 0,
+                    'rating_avg': real_player.get('rating', 7.0),
+                    'condition': 85 + np.random.uniform(-10, 10),
+                    'injury_status': '정상',
+                    'fatigue_level': 30 + np.random.uniform(-10, 20),
+                    'real_data': True,
+                    'jersey': real_player.get('jersey', ''),
+                }
+        except Exception as e:
+            if self.debug:
+                print(f"[ERROR] 로컬 로스터 데이터 로드 실패 ({clean_name}): {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # 3. players_2026 모듈로 선수 데이터 로드 시도 (백업)
         try:
             import sys
             from pathlib import Path
@@ -603,7 +883,8 @@ class DataCollector:
             real_player = get_player_stats(self.league, team_name, clean_name)
             
             if real_player:
-                print(f"✅ {clean_name} 로컬 데이터 로드 완료")
+                if self.debug:
+                    print(f"[OK] {clean_name} players_2026 데이터 로드 완료")
                 # 실제 데이터를 시스템 형식으로 변환
                 if 'ppg' in real_player:  # NBA 선수
                     return {
@@ -645,12 +926,12 @@ class DataCollector:
                         'real_data': True
                     }
             else:
-                print(f"⚠️ {clean_name} 로컬 데이터 없음")
+                print(f"[WARNING] {clean_name} 로컬 데이터 없음")
         except Exception as e:
-            print(f"❌ 로컬 선수 데이터 로드 실패 ({player_name}): {e}")
+            print(f"[ERROR] 로컬 선수 데이터 로드 실패 ({player_name}): {e}")
         
         # 시뮬레이션 데이터
-        print(f"⚠️ {player_name} 시뮬레이션 데이터 사용")
+        print(f"[WARNING] {player_name} 시뮬레이션 데이터 사용")
         return {
             'name': player_name,
             'team': team_name,
@@ -753,3 +1034,88 @@ class DataCollector:
         else:
             with open(filepath, 'r', encoding='utf-8') as f:
                 return json.load(f)
+
+    
+    def get_team_players(self, team_name: str) -> list:
+        """
+        팀 선수 데이터 가져오기
+        
+        Args:
+            team_name: 팀 이름
+        
+        Returns:
+            선수 리스트 (고급 메트릭스 포함)
+        """
+        
+        # 캐시 확인
+        cache_key = f"players_{team_name}_{self.league}"
+        if cache_key in self.players_cache and not self._is_cache_expired(cache_key):
+            if self.debug:
+                print(f"[CACHE] 선수 데이터 캐시 사용: {team_name}")
+            return self.players_cache[cache_key]
+        
+        # 선수 데이터 로드
+        players = self.player_loader.get_team_players(team_name, self.league)
+        
+        if players:
+            self.players_cache[cache_key] = players
+            self._update_cache_timestamp(cache_key)
+            
+            if self.debug:
+                print(f"[OK] {team_name} 선수 데이터 로드: {len(players)}명")
+        else:
+            if self.debug:
+                print(f"[WARNING] {team_name} 선수 데이터 없음")
+        
+        return players
+    
+    def get_top_players(self, team_name: str, top_n: int = 5) -> list:
+        """
+        팀의 주요 선수 가져오기
+        
+        Args:
+            team_name: 팀 이름
+            top_n: 상위 N명
+        
+        Returns:
+            주요 선수 리스트
+        """
+        
+        return self.player_loader.get_top_players(team_name, self.league, top_n)
+    
+    def get_player_by_name(self, player_name: str, team_name: str = None) -> dict:
+        """
+        선수 이름으로 검색
+        
+        Args:
+            player_name: 선수 이름
+            team_name: 팀 이름 (선택)
+        
+        Returns:
+            선수 정보 또는 None
+        """
+        
+        return self.player_loader.get_player_by_name(player_name, team_name, self.league)
+    
+    def apply_injury_to_players(self, players: list, injury_data: dict) -> list:
+        """
+        부상 정보를 선수 데이터에 적용
+        
+        Args:
+            players: 선수 리스트
+            injury_data: 부상 정보 {'home': [...], 'away': [...]}
+        
+        Returns:
+            부상 상태가 적용된 선수 리스트
+        """
+        
+        if not injury_data:
+            return players
+        
+        # 부상 선수 이름 추출
+        injured_names = []
+        for injuries in injury_data.values():
+            for injury in injuries:
+                injured_names.append(injury.get('name', ''))
+        
+        return self.player_loader.apply_injury_status(players, injured_names)

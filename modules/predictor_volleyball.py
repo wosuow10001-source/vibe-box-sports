@@ -3,10 +3,12 @@
 - Markov Chain (세트 기반)
 - 세트 승률 → 경기 승률
 - 랠리 길이 반영
+- 고급 메트릭스 (스파이크 성공률, 블록, 점프, 세트 효율) 통합
 """
 
 import numpy as np
 from pathlib import Path
+from modules.advanced_volleyball_metrics import get_volleyball_metrics
 
 
 class VolleyballPredictor:
@@ -16,6 +18,9 @@ class VolleyballPredictor:
         
         # 배구 특성
         self.sets_to_win = 3  # 5세트 중 3세트 승
+        
+        # 고급 메트릭스 시스템
+        self.advanced_metrics = None  # 리그별로 초기화
     
     def predict_match(self, home_team, away_team, home_data, away_data,
                      weather, temperature, field_condition, match_importance,
@@ -302,5 +307,48 @@ class VolleyballPredictor:
         # 전술 정보 저장
         enhanced_data['formation'] = lineup.get('formation', '기본')
         enhanced_data['tactic'] = lineup.get('tactic', '균형형')
+        
+        return enhanced_data
+    
+    def _enhance_team_data_with_advanced_metrics(self, team_data: dict, 
+                                                 players: list, league: str = "V-League") -> dict:
+        """
+        고급 메트릭스(스파이크 성공률, 블록, 점프, 세트 효율)로 팀 데이터 보강
+        
+        Args:
+            team_data: 기존 팀 데이터
+            players: 선수 리스트
+            league: 리그 이름
+        
+        Returns:
+            보강된 팀 데이터
+        """
+        if not players:
+            return team_data
+        
+        # 리그별 고급 메트릭스 시스템 초기화
+        if self.advanced_metrics is None or self.advanced_metrics.league != league:
+            self.advanced_metrics = get_volleyball_metrics(league)
+        
+        enhanced_data = team_data.copy()
+        
+        # 선수 메트릭스 기반 팀 전력 계산
+        team_strength = self.advanced_metrics.calculate_team_strength_from_players(players)
+        
+        # 세트 승률 조정 (메트릭스 기반)
+        if 'recent_winrate' in enhanced_data:
+            # 기존 승률과 메트릭스 기반 능력치를 혼합 (70% 기존 + 30% 메트릭스)
+            # 공격력과 수비력을 승률로 변환 (0-100 → 0-1)
+            metrics_winrate = (team_strength['attack_rating'] + team_strength['defense_rating']) / 200
+            enhanced_data['recent_winrate'] = enhanced_data['recent_winrate'] * 0.7 + metrics_winrate * 0.3
+        
+        # 고급 메트릭스 저장
+        enhanced_data['team_spike_rate'] = team_strength['team_spike_rate']
+        enhanced_data['team_block_eff'] = team_strength['team_block_eff']
+        enhanced_data['team_dig_eff'] = team_strength['team_dig_eff']
+        enhanced_data['team_set_eff'] = team_strength['team_set_eff']
+        enhanced_data['team_fatigue'] = team_strength['team_fatigue']
+        enhanced_data['advanced_attack_rating'] = team_strength['attack_rating']
+        enhanced_data['advanced_defense_rating'] = team_strength['defense_rating']
         
         return enhanced_data

@@ -10,6 +10,7 @@ from datetime import datetime
 import re
 from typing import List, Dict, Optional
 import time
+import concurrent.futures
 
 class RosterFetcher:
     """선수단 정보를 가져오는 클래스"""
@@ -236,7 +237,9 @@ class RosterFetcher:
             cached_time, cached_data = self.cache[cache_key]
             if time.time() - cached_time < self.cache_duration:
                 print(f"캐시에서 {team_name} 로스터 반환")
-                return cached_data
+                # 중요: 캐시된 데이터도 deep copy하여 반환!
+                import copy
+                return copy.deepcopy(cached_data)
         
         try:
             if self.league in ['NBA', 'MLB']:
@@ -250,7 +253,9 @@ class RosterFetcher:
             
             # 캐시 저장
             self.cache[cache_key] = (time.time(), roster)
-            return roster
+            # 중요: 반환할 때도 deep copy!
+            import copy
+            return copy.deepcopy(roster)
             
         except Exception as e:
             print(f"선수단 정보 가져오기 실패 ({team_name}): {e}")
@@ -303,17 +308,36 @@ class RosterFetcher:
             # MLB는 athletes 배열 안에 items 배열이 있음
             athletes = roster_data.get("athletes", [])
             
-            players = []
+            # 선수 기본 데이터 수집
+            basic_athletes = []
             for athlete_group in athletes:
                 # MLB: items 배열에서 선수 정보 추출
                 if "items" in athlete_group:
                     for athlete in athlete_group["items"]:
-                        player_info = self._parse_espn_player(athlete)
-                        if player_info:
-                            players.append(player_info)
+                        basic_athletes.append(athlete)
                 # NBA: 직접 선수 정보
                 else:
-                    player_info = self._parse_espn_player(athlete_group)
+                    basic_athletes.append(athlete_group)
+            
+            players = []
+            if self.league == 'NBA':
+                # NBA: 선수별 통계를 병렬로 수집
+                with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+                    future_to_athlete = {
+                        executor.submit(self._parse_espn_player, athlete, fetch_stats=True): athlete 
+                        for athlete in basic_athletes
+                    }
+                    for future in concurrent.futures.as_completed(future_to_athlete):
+                        try:
+                            player_info = future.result()
+                            if player_info:
+                                players.append(player_info)
+                        except Exception as e:
+                            print(f"선수 통계 파싱 병렬 스레드 오류: {e}")
+            else:
+                # 다른 리그: 기본 파싱만 수행
+                for athlete in basic_athletes:
+                    player_info = self._parse_espn_player(athlete, fetch_stats=False)
                     if player_info:
                         players.append(player_info)
             
@@ -326,7 +350,7 @@ class RosterFetcher:
             traceback.print_exc()
             return []
     
-    def _parse_espn_player(self, athlete: Dict) -> Optional[Dict]:
+    def _parse_espn_player(self, athlete: Dict, fetch_stats: bool = False) -> Optional[Dict]:
         """ESPN 선수 데이터 파싱"""
         try:
             # 선수 이름 추출 - 여러 경로 시도
@@ -343,7 +367,7 @@ class RosterFetcher:
                 elif "fullName" in nested:
                     name = nested["fullName"]
             
-            # 포지션 추출
+            # 포지션 파싱
             position = "N/A"
             position_info = athlete.get("position", {})
             if isinstance(position_info, dict):
@@ -356,14 +380,35 @@ class RosterFetcher:
             
             # athlete 객체가 중첩된 경우 처리
             athlete_data = athlete.get("athlete", athlete)
+            player_id = athlete_data.get("id")
             
-            # 통계 가져오기
+            # 기본 통계
             stats = {}
             if athlete_data.get("statistics"):
                 stat_list = athlete_data.get("statistics", [])
                 if stat_list and len(stat_list) > 0:
                     stats = stat_list[0]
             
+            # NBA: fetch_stats가 True이면 개별 API 호출하여 시즌 평균 가져오기
+            if self.league == 'NBA' and fetch_stats and player_id:
+                try:
+                    stats_url = f"https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{player_id}/stats"
+                    r = requests.get(stats_url, headers=self.headers, timeout=5)
+                    if r.status_code == 200:
+                        player_stats_data = r.json()
+                        cats = player_stats_data.get("categories", [])
+                        if cats:
+                            avg_stats = cats[0].get("statistics", [])
+                            if avg_stats:
+                                # 가장 최근 시즌 성적을 가져오기 위해 마지막 인덱스 사용
+                                season_stats = avg_stats[-1].get("stats", [])
+                                if season_stats and len(season_stats) >= 18:
+                                    stats["points"] = float(season_stats[17])   # PTS
+                                    stats["rebounds"] = float(season_stats[11]) # REB
+                                    stats["assists"] = float(season_stats[12])  # AST
+                except Exception as e:
+                    pass  # 오류 무시
+                    
             player_info = {
                 "name": name,
                 "position": position,
@@ -404,7 +449,17 @@ class RosterFetcher:
         """KBO 로스터 가져오기 (2026 시즌 실제 선수 명단)"""
         try:
             from data.kbo_rosters_complete_2026 import KBO_ROSTERS_2026
-            base_roster = KBO_ROSTERS_2026.get(team_name, [])
+            import copy
+            
+            # 팀명 변환: "KIA 타이거즈" -> "KIA"
+            short_team_name = team_name
+            for key in KBO_ROSTERS_2026.keys():
+                if key in team_name:
+                    short_team_name = key
+                    break
+            
+            # 원본 데이터를 깊은 복사하여 가져오기 (중요!)
+            base_roster = copy.deepcopy(KBO_ROSTERS_2026.get(short_team_name, []))
         except ImportError:
             print(f"Warning: Could not import KBO roster data")
             base_roster = []
@@ -418,27 +473,32 @@ class RosterFetcher:
     def _fetch_korean_league_roster(self, team_name: str) -> List[Dict]:
         """한국 리그 로스터 가져오기 (2025-26 시즌 실제 선수 명단)"""
         try:
+            import copy
             base_roster = []
             
             if self.league == 'K리그1':
                 from data.kleague_rosters_complete_2026 import KLEAGUE_ROSTERS_2026
-                print(f"🔍 K리그1 로스터 검색: '{team_name}'")
+                print(f"[SEARCH] K리그1 로스터 검색: '{team_name}'")
                 print(f"   사용 가능한 팀: {list(KLEAGUE_ROSTERS_2026.keys())[:3]}...")
-                base_roster = KLEAGUE_ROSTERS_2026.get(team_name, [])
+                # 깊은 복사 사용
+                base_roster = copy.deepcopy(KLEAGUE_ROSTERS_2026.get(team_name, []))
             elif self.league == 'KBL':
                 from data.kbl_rosters_complete_2025_26 import KBL_ROSTERS_2025_26
-                print(f"🔍 KBL 로스터 검색: '{team_name}'")
+                print(f"[SEARCH] KBL 로스터 검색: '{team_name}'")
                 print(f"   사용 가능한 팀: {list(KBL_ROSTERS_2025_26.keys())}")
-                base_roster = KBL_ROSTERS_2025_26.get(team_name, [])
+                # 깊은 복사 사용
+                base_roster = copy.deepcopy(KBL_ROSTERS_2025_26.get(team_name, []))
                 print(f"   검색 결과: {len(base_roster)}명 선수")
                 if base_roster:
                     print(f"   첫 3명: {[p['name'] for p in base_roster[:3]]}")
             elif self.league == 'V-리그 남자':
                 from data.vleague_rosters_complete_2025_26 import VLEAGUE_MEN_ROSTERS_2025_26
-                base_roster = VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, [])
+                # 깊은 복사 사용
+                base_roster = copy.deepcopy(VLEAGUE_MEN_ROSTERS_2025_26.get(team_name, []))
             elif self.league == 'V-리그 여자':
                 from data.vleague_rosters_complete_2025_26 import VLEAGUE_WOMEN_ROSTERS_2025_26
-                base_roster = VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, [])
+                # 깊은 복사 사용
+                base_roster = copy.deepcopy(VLEAGUE_WOMEN_ROSTERS_2025_26.get(team_name, []))
                 
         except ImportError as e:
             print(f"Warning: Could not import {self.league} roster data: {e}")

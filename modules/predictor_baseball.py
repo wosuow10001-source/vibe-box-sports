@@ -3,11 +3,13 @@
 - Negative Binomial Distribution
 - 득점 범위: 2~8점
 - 분산 큼 (포아송보다 정확)
+- 고급 메트릭스 (OPS, wOBA, ERA+, FIP, WAR) 통합
 """
 
 import numpy as np
 from scipy.stats import nbinom, poisson
 from pathlib import Path
+from modules.advanced_baseball_metrics import get_baseball_metrics
 
 
 class BaseballPredictor:
@@ -18,6 +20,9 @@ class BaseballPredictor:
         # 야구 특성
         self.avg_runs = 4.5  # MLB 평균 득점
         self.dispersion = 1.5  # 분산 파라미터
+        
+        # 고급 메트릭스 시스템
+        self.advanced_metrics = None  # 리그별로 초기화
     
     def predict_match(self, home_team, away_team, home_data, away_data,
                      weather, temperature, field_condition, match_importance,
@@ -281,5 +286,59 @@ class BaseballPredictor:
         # 전술 정보 저장
         enhanced_data['formation'] = lineup.get('formation', '기본')
         enhanced_data['tactic'] = lineup.get('tactic', '균형형')
+        
+        return enhanced_data
+    
+    def _enhance_team_data_with_advanced_metrics(self, team_data: dict, 
+                                                 batters: list, pitchers: list,
+                                                 league: str = "KBO") -> dict:
+        """
+        고급 메트릭스(OPS, wOBA, ERA+, FIP, WAR)로 팀 데이터 보강
+        
+        Args:
+            team_data: 기존 팀 데이터
+            batters: 타자 리스트
+            pitchers: 투수 리스트
+            league: 리그 이름
+        
+        Returns:
+            보강된 팀 데이터
+        """
+        if not batters and not pitchers:
+            return team_data
+        
+        # 리그별 고급 메트릭스 시스템 초기화
+        if self.advanced_metrics is None or self.advanced_metrics.league != league:
+            self.advanced_metrics = get_baseball_metrics(league)
+        
+        enhanced_data = team_data.copy()
+        
+        # 선수 메트릭스 기반 팀 전력 계산
+        team_strength = self.advanced_metrics.calculate_team_strength_from_players(batters, pitchers)
+        
+        # OPS/wOBA 기반 득점력 반영
+        if 'avg_goals' in enhanced_data:
+            # 기존 득점과 메트릭스 기반 득점을 혼합 (60% 기존 + 40% 메트릭스)
+            expected_runs = team_strength['expected_runs']
+            enhanced_data['avg_goals'] = enhanced_data['avg_goals'] * 0.6 + expected_runs * 0.4
+        else:
+            enhanced_data['avg_goals'] = team_strength['expected_runs']
+        
+        # ERA+/FIP 기반 실점 반영
+        if 'avg_conceded' in enhanced_data:
+            # 기존 실점과 메트릭스 기반 실점을 혼합
+            expected_runs_allowed = team_strength['expected_runs_allowed']
+            enhanced_data['avg_conceded'] = enhanced_data['avg_conceded'] * 0.6 + expected_runs_allowed * 0.4
+        else:
+            enhanced_data['avg_conceded'] = team_strength['expected_runs_allowed']
+        
+        # 고급 메트릭스 저장
+        enhanced_data['avg_ops'] = team_strength['avg_ops']
+        enhanced_data['avg_woba'] = team_strength['avg_woba']
+        enhanced_data['avg_era_plus'] = team_strength['avg_era_plus']
+        enhanced_data['avg_fip'] = team_strength['avg_fip']
+        enhanced_data['total_war'] = team_strength['total_war']
+        enhanced_data['advanced_attack_rating'] = team_strength['attack_rating']
+        enhanced_data['advanced_defense_rating'] = team_strength['defense_rating']
         
         return enhanced_data
