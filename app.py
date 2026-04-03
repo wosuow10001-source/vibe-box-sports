@@ -26,37 +26,44 @@ from modules.community_database import get_community_database
 import time
 import streamlit.components.v1 as components
 
-# SEO 메타 데이터 및 인증 태그 강제 주입 (Parent Head Injection Hack)
+# SEO 메타 데이터 및 인증 태그 강제 주입 (Aggressive Parent Head Injection)
 st.markdown(
     f"""
     <script>
-        (function() {{
-            var head = window.parent.document.head;
-            
-            // Google Verification
-            if (!head.querySelector('meta[name="google-site-verification"]')) {{
-                var meta_google = window.parent.document.createElement('meta');
-                meta_google.name = "google-site-verification";
-                meta_google.content = "ovEC7t-O6fQOLme9zD6y5XhOHeUu1t97l5uM_aE-L1E";
-                head.appendChild(meta_google);
+        function injectSEOTags() {{
+            try {{
+                var head = window.parent.document.head;
+                
+                // Google Verification
+                if (!head.querySelector('meta[name="google-site-verification"]')) {{
+                    var m1 = window.parent.document.createElement('meta');
+                    m1.name = "google-site-verification";
+                    m1.content = "ovEC7t-O6fQOLmeHnZHlciAtkXS7lehgFYr_qtwH_PY";
+                    head.prepend(m1);
+                }}
+                
+                // Naver Verification
+                if (!head.querySelector('meta[name="naver-site-verification"]')) {{
+                    var m2 = window.parent.document.createElement('meta');
+                    m2.name = "naver-site-verification";
+                    m2.content = "cfecf320d62cc8ee0bf8d1e39581732ff46a0020";
+                    head.prepend(m2);
+                }}
+                
+                // Description (SEO)
+                if (!head.querySelector('meta[name="description"]')) {{
+                    var m3 = window.parent.document.createElement('meta');
+                    m3.name = "description";
+                    m3.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼.";
+                    head.prepend(m3);
+                }}
+                console.log("SEO Tags Injected successfully to parent head.");
+            }} catch (e) {{
+                console.error("SEO Injection failed:", e);
             }}
-            
-            // Naver Verification
-            if (!head.querySelector('meta[name="naver-site-verification"]')) {{
-                var meta_naver = window.parent.document.createElement('meta');
-                meta_naver.name = "naver-site-verification";
-                meta_naver.content = "cfecf320d62cc8ee0bf8d1e39581732ff46a0020";
-                head.appendChild(meta_naver);
-            }}
-            
-            // Description & Keywords (SEO)
-            if (!head.querySelector('meta[name="description"]')) {{
-                var meta_desc = window.parent.document.createElement('meta');
-                meta_desc.name = "description";
-                meta_desc.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼.";
-                head.appendChild(meta_desc);
-            }}
-        }})();
+        }}
+        // 페이지 로드 후 1초 뒤 강제 실행
+        setTimeout(injectSEOTags, 1500);
     </script>
     """,
     unsafe_allow_html=True
