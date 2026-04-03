@@ -26,18 +26,41 @@ from modules.community_database import get_community_database
 import time
 import streamlit.components.v1 as components
 
-# SEO 메타 데이터 주입 (구글/네이버 검색 최적화)
-seo_meta = """
-<head>
-    <meta name="google-site-verification" content="ovEC7t-O6fQOLme9zD6y5XhOHeUu1t97l5uM_aE-L1E" />
-    <meta name="naver-site-verification" content="cfecf320d62cc8ee0bf8d1e39581732ff46a0020" />
-    <meta name="description" content="VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL, 배구 경기 분석 및 승부 예측 전문 플랫폼. 정교한 데이터 분석으로 승률을 높이세요.">
-    <meta name="keywords" content="스포츠분석, AI예측, 축구분석, NBA예측, MLB분석, 배구예측, 스포츠데이터, 경기결과예측, 매치시그널">
-    <meta name="author" content="VIBE BOX">
-    <link rel="canonical" href="https://vibe-box-sports.streamlit.app/">
-</head>
-"""
-components.html(seo_meta, height=0)
+# SEO 메타 데이터 및 인증 태그 강제 주입 (Parent Head Injection Hack)
+st.markdown(
+    f"""
+    <script>
+        (function() {{
+            var head = window.parent.document.head;
+            
+            // Google Verification
+            if (!head.querySelector('meta[name="google-site-verification"]')) {{
+                var meta_google = window.parent.document.createElement('meta');
+                meta_google.name = "google-site-verification";
+                meta_google.content = "ovEC7t-O6fQOLme9zD6y5XhOHeUu1t97l5uM_aE-L1E";
+                head.appendChild(meta_google);
+            }}
+            
+            // Naver Verification
+            if (!head.querySelector('meta[name="naver-site-verification"]')) {{
+                var meta_naver = window.parent.document.createElement('meta');
+                meta_naver.name = "naver-site-verification";
+                meta_naver.content = "cfecf320d62cc8ee0bf8d1e39581732ff46a0020";
+                head.appendChild(meta_naver);
+            }}
+            
+            // Description & Keywords (SEO)
+            if (!head.querySelector('meta[name="description"]')) {{
+                var meta_desc = window.parent.document.createElement('meta');
+                meta_desc.name = "description";
+                meta_desc.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼.";
+                head.appendChild(meta_desc);
+            }}
+        }})();
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 
 # 검색 엔진봇을 위한 시맨틱 헤더 (화면에는 보이지 않음)
 st.markdown("<h1 style='display:none;'>VIBE BOX Sports MatchSignal - AI 스포츠 분석 및 경기 예측</h1>", unsafe_allow_html=True)
