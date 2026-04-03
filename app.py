@@ -549,8 +549,9 @@ if st.session_state.show_qr:
     """, unsafe_allow_html=True)
     
     # 이미지 경로
-    kakao_qr_path = "assets/coffee_qr.jpg"
-    paypal_qr_path = "assets/paypal_qr.png"
+    curr_dir = Path(__file__).parent
+    kakao_qr_path = str(curr_dir / "assets" / "coffee_qr.jpg")
+    paypal_qr_path = str(curr_dir / "assets" / "paypal_qr.png")
     
     col_q1, col_q2 = st.columns(2)
     
