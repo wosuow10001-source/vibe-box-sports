@@ -6,9 +6,9 @@ import sys
 import os
 from pathlib import Path
 
-# 페이지 설정
+# 페이지 설정 (SEO 최적화 타이틀)
 st.set_page_config(
-    page_title="VIBE BOX Sports MatchSignal",
+    page_title="VIBE BOX | AI 해외축구 NBA MLB KBL 분석 및 경기 예측 플랫폼",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -24,6 +24,24 @@ from modules.injury_fetcher import InjuryFetcher
 from modules.coaching_staff_fetcher import CoachingStaffFetcher
 from modules.community_database import get_community_database
 import time
+import streamlit.components.v1 as components
+
+# SEO 메타 데이터 주입 (구글/네이버 검색 최적화)
+seo_meta = """
+<head>
+    <meta name="google-site-verification" content="ovEC7t-O6fQOLme9zD6y5XhOHeUu1t97l5uM_aE-L1E" />
+    <meta name="naver-site-verification" content="cfecf320d62cc8ee0bf8d1e39581732ff46a0020" />
+    <meta name="description" content="VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL, 배구 경기 분석 및 승부 예측 전문 플랫폼. 정교한 데이터 분석으로 승률을 높이세요.">
+    <meta name="keywords" content="스포츠분석, AI예측, 축구분석, NBA예측, MLB분석, 배구예측, 스포츠데이터, 경기결과예측, 매치시그널">
+    <meta name="author" content="VIBE BOX">
+    <link rel="canonical" href="https://vibe-box-sports.streamlit.app/">
+</head>
+"""
+components.html(seo_meta, height=0)
+
+# 검색 엔진봇을 위한 시맨틱 헤더 (화면에는 보이지 않음)
+st.markdown("<h1 style='display:none;'>VIBE BOX Sports MatchSignal - AI 스포츠 분석 및 경기 예측</h1>", unsafe_allow_html=True)
+st.markdown("<h2 style='display:none;'>해외축구, NBA, MLB, KBL 실시간 데이터 기반 정교한 AI 예측 엔진</h2>", unsafe_allow_html=True)
 
 # Streamlit 세션 상태 초기화
 if 'initialized' not in st.session_state:
@@ -2766,3 +2784,13 @@ with tab10:
 # 푸터
 st.divider()
 st.caption(t('footer_title'))
+
+# SEO 최적화 키워드 섹션 (검색 엔진 점수 향상용)
+st.markdown("""
+<div style='text-align: center; color: #4a4a4a; font-size: 0.75rem; margin-top: 50px; padding: 20px; border-top: 1px solid #2a2a2a;'>
+    <p style='margin-bottom: 5px;'><b>VIBE BOX Sports MatchSignal - 프리미엄 AI 스포츠분석 및 경기 예측 서비스</b></p>
+    <p style='margin-bottom: 5px;'>분석 종목: 해외축구(EPL, 라리가, 분데스리가), 농구(NBA, KBL), 야구(MLB), 배구(V-리그)</p>
+    <p style='margin-bottom: 5px;'>핵심 기술: 실시간 ESPN API 연동, Bivariate Poisson 시뮬레이션, Gradient Boosting 확률 보정, AI 딥러닝 예측 엔진</p>
+    <p>전문 키워드: 스포츠분석기, 승무패 예측, AI 스포츠 데이터, 실시간 경기 분석, 매치시그널 전문가용 분석 도구</p>
+</div>
+""", unsafe_allow_html=True)
