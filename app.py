@@ -34,11 +34,11 @@ st.markdown(
             try {{
                 var head = window.parent.document.head;
                 
-                // Google Verification
+                // Google Verification (Updated to match google7b7a4a11b6819b8a)
                 if (!head.querySelector('meta[name="google-site-verification"]')) {{
                     var m1 = window.parent.document.createElement('meta');
                     m1.name = "google-site-verification";
-                    m1.content = "ovEC7t-O6fQOLmeHnZHlciAtkXS7lehgFYr_qtwH_PY";
+                    m1.content = "google7b7a4a11b6819b8a";
                     head.prepend(m1);
                 }}
                 
@@ -54,7 +54,7 @@ st.markdown(
                 if (!head.querySelector('meta[name="description"]')) {{
                     var m3 = window.parent.document.createElement('meta');
                     m3.name = "description";
-                    m3.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼.";
+                    m3.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼. 실시간 데이터 기반 정밀 경기 분석을 제공합니다.";
                     head.prepend(m3);
                 }}
                 console.log("SEO Tags Injected successfully to parent head.");
@@ -62,8 +62,10 @@ st.markdown(
                 console.error("SEO Injection failed:", e);
             }}
         }}
-        // 페이지 로드 후 1초 뒤 강제 실행
-        setTimeout(injectSEOTags, 1500);
+        // 페이지 로드 후 즉시 및 주기적 실행 (Streamlit 리렌더링 대비)
+        injectSEOTags();
+        setTimeout(injectSEOTags, 2000);
+        setTimeout(injectSEOTags, 5000);
     </script>
     """,
     unsafe_allow_html=True
@@ -72,6 +74,7 @@ st.markdown(
 # 검색 엔진봇을 위한 시맨틱 헤더 (화면에는 보이지 않음)
 st.markdown("<h1 style='display:none;'>VIBE BOX Sports MatchSignal - AI 스포츠 분석 및 경기 예측</h1>", unsafe_allow_html=True)
 st.markdown("<h2 style='display:none;'>해외축구, NBA, MLB, KBL 실시간 데이터 기반 정교한 AI 예측 엔진</h2>", unsafe_allow_html=True)
+st.markdown("<p style='display:none;'>스포츠 분석, 경기 예측, K리그, EPL, NBA, KBL, MLB, KBO 메트릭스 분석 플랫폼</p>", unsafe_allow_html=True)
 
 # Streamlit 세션 상태 초기화
 if 'initialized' not in st.session_state:

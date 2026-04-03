@@ -1,5 +1,5 @@
 User-agent: *
 Allow: /
 
-# Sitemap location
+# Sitemap location (Streamlit Cloud Domain)
 Sitemap: https://vibe-box-sports.streamlit.app/sitemap.xml

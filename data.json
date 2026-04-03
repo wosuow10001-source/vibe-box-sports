@@ -1,0 +1,45 @@
+{
+  "summary": "Vibe Sports MatchSignal - AI Predictions",
+  "last_updated": "2026-04-03 23:15:00",
+  "highlights": [
+    {
+      "sport": "Soccer",
+      "match": "Man City vs Arsenal",
+      "prediction": "Home Win (54%)",
+      "score": "2-1"
+    },
+    {
+      "sport": "Basketball",
+      "match": "LA Lakers vs Golden State",
+      "prediction": "Away Win (51%)",
+      "score": "112-115"
+    },
+    {
+      "sport": "Baseball",
+      "match": "LG Twins vs KT Wiz",
+      "prediction": "Home Win (52%)",
+      "score": "5-4"
+    }
+  ],
+  "leagues": {
+    "Soccer": [
+      "EPL",
+      "K-League",
+      "La Liga",
+      "Serie A",
+      "Bundesliga"
+    ],
+    "Basketball": [
+      "NBA",
+      "KBL"
+    ],
+    "Baseball": [
+      "MLB",
+      "KBO"
+    ],
+    "Volleyball": [
+      "V-League (M)",
+      "V-League (W)"
+    ]
+  }
+}
