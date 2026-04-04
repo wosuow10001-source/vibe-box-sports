@@ -34,7 +34,7 @@ st.markdown(
             try {{
                 var head = window.parent.document.head;
                 
-                // Google Verification (Updated to match 57CZSuYK1nDdAgclhI52STt7mpMDu5Mqjj2ixtyPthg)
+                // Google Verification
                 if (!head.querySelector('meta[name="google-site-verification"]')) {{
                     var m1 = window.parent.document.createElement('meta');
                     m1.name = "google-site-verification";
