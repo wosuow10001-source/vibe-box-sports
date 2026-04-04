@@ -27,11 +27,12 @@ def calculate_poisson_probability(avg_goals):
     """
     포아송 분포를 이용한 득점 확률 계산
     """
-    from scipy.stats import poisson
+    from math import exp, factorial
     
     probabilities = {}
     for goals in range(0, 6):
-        probabilities[goals] = poisson.pmf(goals, avg_goals)
+        # P(k; lambda) = (lambda^k * exp(-lambda)) / k!
+        probabilities[goals] = (avg_goals ** goals) * exp(-avg_goals) / factorial(goals)
     
     return probabilities
 
@@ -222,11 +223,11 @@ def calculate_confidence_interval(probability, sample_size):
     """
     신뢰 구간 계산
     """
-    import scipy.stats as stats
+    from math import erf, sqrt
     
-    # 95% 신뢰구간
+    # 95% 신뢰구간 (z = 1.96)
     z_score = 1.96
-    margin = z_score * np.sqrt((probability * (1 - probability)) / sample_size)
+    margin = z_score * sqrt((probability * (1 - probability)) / sample_size)
     
     lower = max(0, probability - margin)
     upper = min(1, probability + margin)
