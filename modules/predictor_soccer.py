@@ -9,10 +9,7 @@
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.preprocessing import StandardScaler
-from scipy.stats import poisson
-from scipy.special import factorial
+from math import factorial, exp
 import pickle
 from pathlib import Path
 from modules.advanced_soccer_metrics import get_soccer_metrics
@@ -21,7 +18,7 @@ from modules.advanced_soccer_metrics import get_soccer_metrics
 class SoccerPredictor:
     def __init__(self):
         self.model = None
-        self.scaler = StandardScaler()
+        self.scaler = None
         self.model_path = Path("models")
         self.model_path.mkdir(exist_ok=True)
         
@@ -843,7 +840,7 @@ class SoccerPredictor:
         
         for k in range(min_goals + 1):
             term = (
-                np.exp(-lambda_home_ind - lambda_away_ind - lambda_c) *
+                exp(-lambda_home_ind - lambda_away_ind - lambda_c) *
                 (lambda_home_ind ** (home_goals - k)) / factorial(home_goals - k) *
                 (lambda_away_ind ** (away_goals - k)) / factorial(away_goals - k) *
                 (lambda_c ** k) / factorial(k)

@@ -7,7 +7,7 @@
 """
 
 import numpy as np
-from scipy.stats import nbinom, poisson
+from math import lgamma, exp, log
 from pathlib import Path
 from modules.advanced_baseball_metrics import get_baseball_metrics
 
@@ -185,6 +185,16 @@ class BaseballPredictor:
         p = r / (r + mu)
         
         return r, p
+
+    def _nbinom_pmf(self, k, r, p):
+        """
+        Negative Binomial 확률 질량 함수 직접 구현 (log-gamma 사용으로 수치 안정성 확보)
+        P(k; r, p) = Gamma(k+r) / (k! * Gamma(r)) * p^r * (1-p)^k
+        """
+        if k < 0: return 0
+        # log(P) = lgamma(k+r) - lgamma(k+1) - lgamma(r) + r*log(p) + k*log(1-p)
+        log_prob = lgamma(k + r) - lgamma(k + 1) - lgamma(r) + r * log(p) + k * log(1 - p)
+        return exp(log_prob)
     
     def _calculate_score_distribution(self, r_home, p_home, r_away, p_away, max_runs=12):
         """Negative Binomial 기반 스코어 분포 계산"""
@@ -198,8 +208,8 @@ class BaseballPredictor:
         for home_runs in range(max_runs + 1):
             for away_runs in range(max_runs + 1):
                 # Negative Binomial PMF
-                prob_home = nbinom.pmf(home_runs, r_home, p_home)
-                prob_away = nbinom.pmf(away_runs, r_away, p_away)
+                prob_home = self._nbinom_pmf(home_runs, r_home, p_home)
+                prob_away = self._nbinom_pmf(away_runs, r_away, p_away)
                 
                 prob = prob_home * prob_away
                 score_probs[(home_runs, away_runs)] = prob
