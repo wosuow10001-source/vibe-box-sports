@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>AI 스포츠 승부 예측 | 토토스포츠 실시간 분석 (xG/PER/OPS) - Match Prediction</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="google-site-verification" content="4UDRKCnaDMW-rvurPh_Y2E7k0C-0s_Vw-R0e8F5R5rY" />
+    <meta name="google-site-verification" content="ovEC7t-O6fQOLmeHv7kO3hX1fI6YEqitU-J3-MivhIs" />
+    <meta name="description" content="AI 기반 프리미엄 토토스포츠 및 프로토 정밀 분석 플랫폼. 축구 xG, 농구 PER, 야구 OPS/WAR 등 고급 데이터와 실시간 부상 리포트를 제공합니다. VIBE BOX SPORTS MatchSignal로 승리의 신호를 포착하세요." />
+    <meta name="keywords" content="토토스포츠, 스포츠토토, 승부 예측, match prediction, 프로토 분석, 오늘의 프로토, 축구 xG, 농구 PER, 야구 OPS, 배당 흐름, 실시간 라인업, 부상자 명단, KBO 분석, NBA 분석, EPL 예측" />
+    <meta name="author" content="VIBE BOX SPORTS" />
+    <link rel="canonical" href="https://vibe-box-sports.streamlit.app/" />
+
+    <!-- Open Graph / Meta -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vibe-box-sports.streamlit.app/" />
+    <meta property="og:title" content="AI 스포츠 승부 예측 | 토토스포츠 분석 (xG/PER/OPS)" />
+    <meta property="og:description" content="실시간 AI 스포츠 데이터 분석 포털. 토토스포츠 및 프로토 정밀 승부 예측 솔루션." />
+    <meta property="og:image" content="https://vibe-box-sports.streamlit.app/assets/banner.png" />
+
+    <!-- Google Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "VIBE BOX SPORTS MatchSignal",
+      "alternateName": "토토스포츠 AI 분석기",
+      "operatingSystem": "Web",
+      "applicationCategory": "SportsApplication",
+      "description": "AI 기반 실시간 스포츠 경기 승부 예측 및 토토스포츠 데이터 분석 플랫폼 (xG, PER, OPS 데이터 분석)",
+      "keywords": "토토스포츠, 스포츠토토, 승부 예측, match prediction, 프로토 분석, 축구 xG, 농구 PER, 야구 OPS/WAR",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "1250"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "KRW"
+      }
+    }
+    </script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Background Prefetch for optimization -->
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.js" as="script">
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.css" as="style">
+    
+    <style>
+        :root {
+            --neon-yellow: #CCFF00;
+            --dark-bg: #0f172a;
+            --darkER-bg: #050a16;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            background-color: var(--darkER-bg); color: white; 
+            font-family: 'Outfit', 'Inter', sans-serif;
+            min-height: 100vh; overflow-x: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+
+        /* Ambient Glows */
+        .glow {
+            position: absolute; width: 400px; height: 300px;
+            background: radial-gradient(circle, var(--neon-yellow) 0%, transparent 70%);
+            filter: blur(120px); opacity: 0.08; z-index: -1; animation: pulse 8s infinite alternate;
+        }
+        @keyframes pulse { to { transform: scale(1.2); opacity: 0.12; } }
+
+        .container {
+            max-width: 800px; width: 100%; padding: 2rem; text-align: center; z-index: 10;
+        }
+
+        .brand-pill {
+            display: inline-block; padding: 0.5rem 1.5rem; background: var(--glass-bg);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 100px;
+            font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--neon-yellow);
+            margin-bottom: 2rem; backdrop-filter: blur(10px);
+        }
+
+        .hero-title {
+            font-size: clamp(3rem, 10vw, 5.5rem); font-weight: 900; line-height: 0.95;
+            letter-spacing: -3px; margin-bottom: 1.5rem; text-transform: uppercase;
+        }
+        .hero-title span { color: var(--neon-yellow); }
+
+        .hero-desc {
+            font-size: 1.2rem; line-height: 1.6; color: #94a3b8; max-width: 600px; margin: 0 auto 3rem;
+            font-weight: 400;
+        }
+
+        .btn-start {
+            display: inline-block; padding: 1.2rem 3rem; background: var(--neon-yellow);
+            color: black; font-weight: 800; font-size: 1.2rem; text-transform: uppercase;
+            border-radius: 1rem; cursor: pointer; text-decoration: none;
+            transition: var(--transition); border: none;
+            box-shadow: 0 0 30px rgba(204, 255, 0, 0.3);
+            position: relative; overflow: hidden;
+        }
+        .btn-start:hover { transform: translateY(-5px); box-shadow: 0 10px 40px rgba(204, 255, 0, 0.5); }
+        .btn-start:active { transform: translateY(0); }
+
+        .warning-box {
+            margin-top: 4rem; padding: 1.5rem; background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem;
+            max-width: 500px; margin-left: auto; margin-right: auto;
+        }
+        .warning-box h4 { font-size: 0.9rem; color: #ef4444; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .warning-box p { font-size: 0.85rem; color: #64748b; line-height: 1.5; }
+
+        footer {
+            margin-top: 5rem; padding-bottom: 2rem; font-size: 0.8rem; color: #475569;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 640px) {
+            .hero-title { font-size: 3.5rem; }
+            .container { padding: 1.5rem; }
+            .btn-start { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="glow" style="top: 10%; left: 10%;"></div>
+    <div class="glow" style="bottom: 10%; right: 10%;"></div>
+
+    <div class="container">
+        <div class="brand-pill">PREMIUM AI SOLUTION</div>
+        
+        <h1 class="hero-title">AI 토토스포츠 <span>승부 예측</span></h1>
+        
+        <p class="hero-desc">
+            VIBE BOX SPORTS의 프리미엄 <b>Match Prediction</b> 솔루션입니다.<br>
+            토토스포츠 및 프로토 유저를 위한 최신 xG, PER, OPS 데이터 기반<br>
+            정밀 분석으로 승리의 신호를 포착하세요.
+        </p>
+
+        <a href="app-portal.html" class="btn-start">
+            AI 엔진 시작하기
+        </a>
+
+        <div class="warning-box">
+            <h4>💡 LOADING NOTICE</h4>
+            <p>
+                본 플랫폼은 최상의 정확도를 위해 <b>실시간 데이터 수집 및 고성능 ML 엔진</b>을 브라우저에 직접 로드합니다. 기기 사양에 따라 최초 실행 시 약 10~30초의 시간이 소요될 수 있습니다. 무한 로딩이 아니니 잠시만 기다려 주세요.
+            </p>
+        </div>
+
+        <div style="margin-top: 4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; opacity: 0.6; font-size: 0.8rem; text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 2rem;">
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">SOCCER (xG)</h5>
+                Expected Goals, xA, PPDA, 실시간 라인업 분석, EPL/라리가 승부 예측
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">BASKETBALL (PER)</h5>
+                Player Efficiency, Win Shares, 실시간 부상 리포트, NBA/KBL 정밀 분석
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">BASEBALL (OPS)</h5>
+                On-base Plus Slugging, WAR, wOBA, MLB/KBO 데이터 분석
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">TOTO & PROTO</h5>
+                토토스포츠 분석, 프로토 승무패, 실시간 배당 흐름 데이터
+            </div>
+        </div>
+
+        <footer>
+            &copy; 2026 VIBE BOX SPORTS. All Rights Reserved.
+        </footer>
+    </div>
+</body>
+</html>
