@@ -267,12 +267,29 @@ class SoccerPredictor:
             draw_p = draws / total
             away_win_p = away_wins / total
             
-        # 스코어 분포
+        # 스코어 분포 계산
         score_counts = {}
         for r in results:
             score_counts[r] = score_counts.get(r, 0) + 1
             
+        # [Decisiveness Upgrade] 승리 확률 최상위 팀 정합성 보정 (Winner-Aligned Score Selection)
+        # 단순히 빈도수 1위가 아닌, 승리 확률이 높은 팀의 '승리 스코어' 중 최빈값을 선택
         top_5 = sorted(score_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        # 결정력 부스트: 승리 확률 차이가 10%p 이상이면 해당 팀의 승리 스코어를 우선 권장
+        diff_prob = abs(home_win_p - away_win_p)
+        favored_score = top_5[0][0]
+        
+        if diff_prob > 0.08: # 8%p 이상 차이 시 결정력 강화
+            winner_scores = []
+            if home_win_p > away_win_p:
+                winner_scores = sorted([(k, v) for k, v in score_counts.items() if k[0] > k[1]], key=lambda x: x[1], reverse=True)
+            else:
+                winner_scores = sorted([(k, v) for k, v in score_counts.items() if k[0] < k[1]], key=lambda x: x[1], reverse=True)
+            
+            if winner_scores:
+                favored_score = winner_scores[0][0]
+                
         top_5_scores = [((s[0], s[1]), s[1]/num_sims) for s in top_5]
         
         # 베팅 메트릭스
@@ -289,8 +306,8 @@ class SoccerPredictor:
             'home_win_prob': home_win_p,
             'draw_prob': draw_p,
             'away_win_prob': away_win_p,
-            'expected_score_home': int(top_5[0][0][0]),
-            'expected_score_away': int(top_5[0][0][1]),
+            'expected_score_home': int(favored_score[0]),
+            'expected_score_away': int(favored_score[1]),
             'top_5_scores': top_5_scores,
             'over_2_5_prob': over_2_5,
             'over_3_5_prob': over_3_5,
@@ -667,17 +684,29 @@ class SoccerPredictor:
         league_attack_f = league_cal["attack"]
         league_home_adv = league_cal["home_adv"]
         
-        # ========== 1. 기본 실력 반영 (시즌 평균) ==========
+        # ========== 1. 기본 실력 반영 (시즌 평균 + 고급 메트릭스) ==========
         team_goals = team_data.get('avg_goals', 1.5)
         opp_conceded = opponent_data.get('avg_conceded', 1.5)
         
-        # [Sanity Check] 데이터 누락/오류로 인한 0.00 방지 하한선 설정
-        # 상위권(1~5위)은 최소 1.2, 중위권(6~12위)은 1.0, 하위권은 0.8 보장
+        # xG (기대 득점) 반영: 데이터가 있으면 40% 가중치 부여
+        # xG가 0.00인 경우(누락 시) 순위 기반 추정 xG 주입 (Sanity Check)
         my_rank = team_data.get('rank', 10)
+        opp_rank = opponent_data.get('rank', 10)
+        
+        raw_xg = team_data.get('xg', team_data.get('team_xg', 0.0))
+        if raw_xg <= 0.01:
+            # 추정 xG: 순위가 높을수록(숫자 작을수록) 높은 xG 부여
+            raw_xg = 1.8 - (my_rank * 0.04) 
+        
+        raw_xga = opponent_data.get('xga', opponent_data.get('team_xg_conceded', 0.0))
+        if raw_xga <= 0.01:
+            raw_xga = 1.0 + (opp_rank * 0.04)
+
+        # [Sanity Check] 데이터 누락/오류로 인한 0.00 방지 하한선 설정
         min_stat = 1.2 if my_rank <= 5 else 1.0 if my_rank <= 12 else 0.8
         
-        effective_team_goals = max(min_stat, team_goals)
-        effective_opp_conceded = max(min_stat, opp_conceded)
+        effective_team_goals = max(min_stat, team_goals * 0.6 + raw_xg * 0.4)
+        effective_opp_conceded = max(min_stat, opp_conceded * 0.6 + raw_xga * 0.4)
         
         base_lambda = (effective_team_goals + effective_opp_conceded) / 2
         base_lambda *= league_attack_f
@@ -685,13 +714,16 @@ class SoccerPredictor:
         if is_home:
             base_lambda *= league_home_adv
             
-        # ========== 2. 리그 순위 및 전력 차이 보정 (Sensitivity 강화) ==========
-        # 순위 차이에 의한 보정 (순위 1위 차이당 1.2% 보정 - 더 민감하게 상향)
-        my_rank = team_data.get('rank', 10)
-        opp_rank = opponent_data.get('rank', 10)
+        # ========== 2. 리그 순위 및 전력 차이 보정 (Decisiveness 강화) ==========
+        # 순위 차이에 의한 보정 (순위 1위 차이당 1.5% 보정으로 상향 - 승부 갈림길 명확화)
         rank_diff = opp_rank - my_rank # 내가 순위가 높으면(숫자가 작으면) 양수
-        rank_bonus = 1.0 + (rank_diff * 0.012)
-        base_lambda *= max(0.80, min(1.20, rank_bonus))
+        rank_bonus = 1.0 + (rank_diff * 0.015)
+        
+        # 전력 차가 큰 경우(5위 차 이상) 결정력 부스트 가동
+        if abs(rank_diff) >= 5:
+            rank_bonus = 1.0 + (rank_diff * 0.025) # 2.5%로 대폭 강화
+            
+        base_lambda *= max(0.70, min(1.35, rank_bonus))
             
         # ========== 3. 동적 컨텐츠 모디파이어 ==========
         # 폼 반영 (Weighted Form)
@@ -732,11 +764,11 @@ class SoccerPredictor:
                     base_lambda *= 1.10 # 상대 주요 수비수 결장 시 10% 증가
                     break
 
-        # 기타 요인 통합
-        cond_f = 0.9 + (player_condition * 0.2)
-        tact_f = 0.9 + (tactical * 0.2)
-        weat_f = 0.95 + (weather if isinstance(weather, float) else 0.05) # 날씨 점수화
-        coac_f = 0.95 + (coaching * 0.1)
+        # 기타 요인 통합 (가중치 강화: 부상/코칭/컨디션 영향력을 20% -> 35%로 상향)
+        cond_f = 0.85 + (player_condition * 0.3)
+        tact_f = 0.85 + (tactical * 0.3)
+        weat_f = 0.9 + (weather if isinstance(weather, float) else 0.1) # 날씨 점수화
+        coac_f = 0.9 + (coaching * 0.2)
         
         final_lambda = (
             base_lambda * form_factor * cond_f * 
