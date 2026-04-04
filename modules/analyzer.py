@@ -48,14 +48,13 @@ class PerformanceAnalyzer:
         }
     
     def _create_form_chart(self, matches):
-        """최근 경기 폼 차트 생성"""
+        """최근 경기 폼 차트 생성 - stlite 호환성 최적화"""
         
         if not matches:
             return pd.DataFrame()
         
-        dates = [m['date'] for m in matches]
-        
-        # 누적 승점
+        # 1. 데이터 추출
+        dates = [m['date'].strftime('%m/%d') if isinstance(m['date'], datetime) else str(m['date']) for m in matches]
         points = []
         cumulative = 0
         
@@ -64,18 +63,20 @@ class PerformanceAnalyzer:
                 cumulative += 3
             elif m['result'] == 'D':
                 cumulative += 1
-            points.append(cumulative)
+            points.append(float(cumulative))
         
-        # 득점/실점
-        goals_for = [m['goals_for'] for m in matches]
-        goals_against = [m['goals_against'] for m in matches]
+        goals_for = [float(m['goals_for']) for m in matches]
+        goals_against = [float(m['goals_against']) for m in matches]
         
+        # 2. DataFrame 생성 (stlite에서는 index를 미리 설정하는 것이 안정적임)
         df = pd.DataFrame({
-            '날짜': dates,
-            '누적승점': points,
-            '득점': goals_for,
-            '실점': goals_against
-        })
+            'Points': points,
+            'GF': goals_for,
+            'GA': goals_against
+        }, index=dates)
+        
+        # 한글 컬럼명 재설정 (데이터 타입 유지)
+        df.columns = ['누적승점', '득점', '실점']
         
         return df
     
@@ -284,21 +285,23 @@ class PerformanceAnalyzer:
             return "낮음"
     
     def _create_performance_trend(self, player_data):
-        """퍼포먼스 트렌드 생성"""
+        """퍼포먼스 트렌드 생성 - stlite 호환성 최적화"""
         
         # 시뮬레이션 데이터
-        matches = player_data['matches_played']
+        matches_count = player_data['matches_played']
         
         ratings = []
-        for i in range(min(10, matches)):
+        for i in range(min(10, matches_count)):
             # 평균 평점 주변으로 변동
             rating = player_data['rating_avg'] + np.random.uniform(-0.5, 0.5)
-            ratings.append(max(5.0, min(10.0, rating)))
+            ratings.append(float(max(5.0, min(10.0, rating))))
         
+        # 인덱스 설정으로 차트 안정성 확보
         df = pd.DataFrame({
-            '경기': range(1, len(ratings) + 1),
-            '평점': ratings
-        })
+            'Rating': ratings
+        }, index=[f"G{i+1}" for i in range(len(ratings))])
+        
+        df.columns = ['평점']
         
         return df
     
