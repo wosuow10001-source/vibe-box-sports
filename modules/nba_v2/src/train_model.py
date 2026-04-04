@@ -1,5 +1,5 @@
 import os
-import joblib
+# joblib is imported lazily to avoid startup crashes in static environments without heavy ML libs
 import pandas as pd
 import numpy as np
 # sklearn is imported lazily to avoid startup crashes in static environments without heavy ML libs
@@ -31,11 +31,13 @@ class NBATrainer:
         self.save_model()
         
     def save_model(self):
+        import joblib
         joblib.dump(self.model, self.model_path)
         logger.info(f"Model saved to {self.model_path}")
         
     def load_model(self):
         if os.path.exists(self.model_path):
+            import joblib
             self.model = joblib.load(self.model_path)
             return True
         return False
