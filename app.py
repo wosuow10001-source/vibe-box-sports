@@ -35,17 +35,12 @@ st.markdown(
                 var head = window.parent.document.head;
                 if (!head) return;
                 
-                // Google Verification (Final Dual Codes for both domains)
+                // Google Verification (Streamlit Cloud Domain)
                 if (!head.querySelector('meta[name="google-site-verification"]')) {{
-                    var m1a = window.parent.document.createElement('meta');
-                    m1a.name = "google-site-verification";
-                    m1a.content = "4UDRKCnaDMW-rvurPh_Y2E7k0C-0s_Vw-R0e8F5R5rY";
-                    head.prepend(m1a);
-                    
-                    var m1b = window.parent.document.createElement('meta');
-                    m1b.name = "google-site-verification";
-                    m1b.content = "ovEC7t-O6fQOLmeHv7kO3hX1fI6YEqitU-J3-MivhIs";
-                    head.prepend(m1b);
+                    var m1 = window.parent.document.createElement('meta');
+                    m1.name = "google-site-verification";
+                    m1.content = "ovEC7t-O6fQOLmeHv7kO3hX1fI6YEqitU-J3-MivhIs";
+                    head.prepend(m1);
                 }}
                 
                 // Naver Verification
