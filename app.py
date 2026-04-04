@@ -26,15 +26,16 @@ from modules.community_database import get_community_database
 import time
 import streamlit.components.v1 as components
 
-# SEO 메타 데이터 및 인증 태그 강제 주입 (Aggressive Parent Head Injection)
+## SEO & Meta Tag Injection (Immediate Execution)
 st.markdown(
     f"""
     <script>
-        function injectSEOTags() {{
-            try {{
+        (function() {{
+            function inject() {{
                 var head = window.parent.document.head;
+                if (!head) return;
                 
-                // Google Verification (Updated to match e2d400b48f1017ff)
+                // Google Verification (Final Code: e2d400b48f1017ff)
                 if (!head.querySelector('meta[name="google-site-verification"]')) {{
                     var m1 = window.parent.document.createElement('meta');
                     m1.name = "google-site-verification";
@@ -50,19 +51,15 @@ st.markdown(
                     head.prepend(m2);
                 }}
                 
-                // Description (SEO)
+                // Description
                 if (!head.querySelector('meta[name="description"]')) {{
                     var m3 = window.parent.document.createElement('meta');
                     m3.name = "description";
                     m3.content = "VIBE BOX Sports MatchSignal - AI 기반 해외축구, NBA, MLB, KBL 분석 및 경기 예측 플랫폼. 실시간 데이터 기반 정밀 경기 분석을 제공합니다.";
                     head.prepend(m3);
                 }}
-                console.log("SEO Tags Injected successfully to parent head.");
-            }} catch (e) {{
-                console.error("SEO Injection failed:", e);
+                console.log("SEO Tags Injected Successfully");
             }}
-        }}
-        // 페이지 로드 후 즉시 및 주기적 실행 (Streamlit 리렌더링 대비)
         injectSEOTags();
         setTimeout(injectSEOTags, 2000);
         setTimeout(injectSEOTags, 5000);
