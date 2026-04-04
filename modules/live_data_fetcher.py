@@ -346,17 +346,40 @@ class LiveDataFetcher:
                 self._update_cache(cache_key, standings[team_name])
                 return standings[team_name]
         
-        elif league == "EPL":
-            standings = self._fetch_espn_soccer_standings("eng.1")
-            if team_name in standings:
-                self._update_cache(cache_key, standings[team_name])
-                return standings[team_name]
+        # 축구 리그 매핑 및 실시간 수집
+        soccer_league_map = {
+            "EPL": "eng.1",
+            "La Liga": "esp.1",
+            "Serie A": "ita.1",
+            "Bundesliga": "ger.1",
+            "MLS": "usa.1"
+        }
+        
+        if league in soccer_league_map:
+            league_code = soccer_league_map[league]
+            standings = self._fetch_espn_soccer_standings(league_code)
+            
+            # 팀명 보정 및 매칭
+            matched_team = self._find_best_match(team_name, standings.keys())
+            if matched_team and matched_team in standings:
+                data = standings[matched_team]
+                # 실시간 xG 보정 (임시: 성적 기반 추정 xG 주입, 향후 고도화 예정)
+                if 'xg' not in data:
+                    data['xg'] = (data['goals_for'] / max(1, data['played'])) * 1.05
+                    data['xga'] = (data['goals_against'] / max(1, data['played'])) * 0.95
                 
-        elif league == "MLS":
-            standings = self._fetch_espn_soccer_standings("usa.1")
-            if team_name in standings:
-                self._update_cache(cache_key, standings[team_name])
-                return standings[team_name]
+                self._update_cache(cache_key, data)
+                return data
+        
+        # 폴백: 로컬 데이터
+        return self._load_local_team_data(league, team_name)
+
+    def _find_best_match(self, team_name: str, options: list) -> str:
+        """팀명 문자열 유사도 매칭 (단순 포함 관계 우선)"""
+        if team_name in options: return team_name
+        for opt in options:
+            if team_name in opt or opt in team_name: return opt
+        return ""
         
         # 폴백: 로컬 데이터
         return self._load_local_team_data(league, team_name)

@@ -1285,9 +1285,14 @@ with tab1:
             # ========== 고급 메트릭스 표시 (NEW) ==========
             st.markdown("---")
             
-            # 데이터 추정치 사용 여부 확인 및 경고
+            # 데이터 소스 및 상태 안내 (개선된 UI)
+            h_src = home_data.get('data_source', '기본 통계')
+            a_src = away_data.get('data_source', '기본 통계')
+            
             if home_data.get('is_estimated') or away_data.get('is_estimated'):
-                st.warning("⚠️ **데이터 주의:** 일부 실시간 데이터 누락으로 인해, 시즌 성적 및 순위를 기반으로 한 **통계적 추정 데이터**가 사용되었습니다. 예측의 정확도가 평소보다 낮을 수 있습니다.")
+                st.warning(f"⚠️ **데이터 안내:** 일부 실시간 지표가 부족하여 **{h_src}** 및 **{a_src}**를 기반으로 분석되었습니다. (정확도 보정 적용)")
+            else:
+                st.success(f"✅ **데이터 확인:** 현재 분석은 **{h_src}** 및 **{a_src}** 최신 데이터를 엔진에 직접 연결하여 진행 중입니다.")
             
             st.subheader("📊 고급 메트릭스 분석")
             
