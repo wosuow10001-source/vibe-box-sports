@@ -2,7 +2,7 @@ import os
 import joblib
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import GradientBoostingClassifier
+# sklearn is imported lazily to avoid startup crashes in static environments without heavy ML libs
 from modules.nba_v2.src.utils import logger, NBAConfig
 
 class NBATrainer:
@@ -14,6 +14,7 @@ class NBATrainer:
         
     def train(self, X: pd.DataFrame, y: pd.Series):
         """GradientBoosting 모델 학습"""
+        from sklearn.ensemble import GradientBoostingClassifier
         if X.empty or len(X) < 10:
             logger.warning("Insufficient data for training. Using synthetic initialization.")
             self._initialize_bootstrap_model()
@@ -41,6 +42,7 @@ class NBATrainer:
         
     def _initialize_bootstrap_model(self):
         """데이터가 부족할 때 초기 모델 생성 (부트스트랩 용도)"""
+        from sklearn.ensemble import GradientBoostingClassifier
         # 임의의 데이터로 초기화하여 파이프라인 작동 보장
         X_mock = pd.DataFrame(np.random.rand(20, 13)) # 13 features
         y_mock = pd.Series(np.random.randint(0, 2, 20))

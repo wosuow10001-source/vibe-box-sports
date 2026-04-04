@@ -9,7 +9,7 @@
 """
 
 import numpy as np
-from scipy.stats import norm
+from math import erf, exp, sqrt, pi
 from pathlib import Path
 from typing import Dict, Tuple, List, Optional
 from modules.advanced_player_metrics import get_advanced_metrics
@@ -547,13 +547,24 @@ class BasketballPredictorLeagueNormalized:
             + 0.8 * (1 - X['form_score'])
         )
     
+    def _norm_pdf(self, x, mu, sigma):
+        """정규분포 확률 밀도 함수 (PDF) 직접 구현"""
+        if sigma == 0: return 0
+        return (1 / (sigma * sqrt(2 * pi))) * exp(-0.5 * ((x - mu) / sigma) ** 2)
+
+    def _norm_cdf(self, x, mu, sigma):
+        """정규분포 누적 분포 함수 (CDF) 직접 구현"""
+        if sigma == 0: return 1 if x >= mu else 0
+        return 0.5 * (1 + erf((x - mu) / (sigma * sqrt(2))))
+
     def _win_probability(self, mean_A: float, mean_B: float, 
                         std_A: float, std_B: float) -> float:
         """승률 계산 (Normal Distribution)"""
         diff_mean = mean_A - mean_B
         diff_std = np.sqrt(std_A**2 + std_B**2)
         
-        return 1 - norm.cdf(0, loc=diff_mean, scale=diff_std)
+        # 1 - P(X < 0) where X ~ N(diff_mean, diff_std)
+        return 1 - self._norm_cdf(0, loc=diff_mean, scale=diff_std)
     
     def _generate_top_scores(self, mean_home: float, mean_away: float,
                             std_home: float, std_away: float) -> list:
@@ -573,8 +584,8 @@ class BasketballPredictorLeagueNormalized:
                     self.profile['max_score']
                 ))
                 
-                prob_h = norm.pdf(h_score, loc=mean_home, scale=std_home)
-                prob_a = norm.pdf(a_score, loc=mean_away, scale=std_away)
+                prob_h = self._norm_pdf(h_score, loc=mean_home, scale=std_home)
+                prob_a = self._norm_pdf(a_score, loc=mean_away, scale=std_away)
                 prob = prob_h * prob_a
                 
                 scores.append(((h_score, a_score), prob))
@@ -780,7 +791,10 @@ class BasketballPredictorLeagueNormalized:
         import math
         import random
         import numpy as np
-        from scipy.stats import norm
+        
+        # scipy.stats.norm 대체 (KBL 특화)
+        def kbl_norm_cdf(x, mu, sigma):
+            return 0.5 * (1 + math.erf((x - mu) / (sigma * math.sqrt(2))))
         
         # 0. 데이터 무결성 체크 및 평균 추출
         # KBLDataFetcher에서 이미 블렌딩된 avg_points와 avg_allowed가 넘어옵니다.
