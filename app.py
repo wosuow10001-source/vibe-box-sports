@@ -34,11 +34,11 @@ st.markdown(
             try {{
                 var head = window.parent.document.head;
                 
-                // Google Verification (Updated to match google7b7a4a11b6819b8a)
+                // Google Verification (Updated to match 57CZSuYK1nDdAgclhI52STt7mpMDu5Mqjj2ixtyPthg)
                 if (!head.querySelector('meta[name="google-site-verification"]')) {{
                     var m1 = window.parent.document.createElement('meta');
                     m1.name = "google-site-verification";
-                    m1.content = "google7b7a4a11b6819b8a";
+                    m1.content = "57CZSuYK1nDdAgclhI52STt7mpMDu5Mqjj2ixtyPthg";
                     head.prepend(m1);
                 }}
                 

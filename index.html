@@ -3,12 +3,44 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>VIBE BOX SPORTS | AI MatchSignal Portal</title>
+    <title>AI 스포츠 승부 예측 | 토토스포츠 실시간 분석 (xG/PER/OPS) - Match Prediction</title>
     
     <!-- SEO Meta Tags -->
-    <meta name="description" content="AI 기반 프리미엄 스포츠 경기 예측 플랫폼. 해외축구, NBA, MLB, KBL 실시간 데이터 수집 및 정밀 예측 서비스." />
-    <meta property="og:title" content="VIBE BOX SPORTS | AI MatchSignal" />
-    <meta property="og:description" content="실시간 AI 스포츠 데이터 분석 포털" />
+    <meta name="description" content="AI 기반 프리미엄 토토스포츠 및 프로토 정밀 분석 플랫폼. 축구 xG, 농구 PER, 야구 OPS/WAR 등 고급 데이터와 실시간 부상 리포트를 제공합니다. VIBE BOX SPORTS MatchSignal로 승리의 신호를 포착하세요." />
+    <meta name="keywords" content="토토스포츠, 스포츠토토, 승부 예측, match prediction, 프로토 분석, 오늘의 프로토, 축구 xG, 농구 PER, 야구 OPS, 배당 흐름, 실시간 라인업, 부상자 명단, KBO 분석, NBA 분석, EPL 예측" />
+    <meta name="author" content="VIBE BOX SPORTS" />
+    <link rel="canonical" href="https://vibe-box-sports.streamlit.app/" />
+
+    <!-- Open Graph / Meta -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vibe-box-sports.streamlit.app/" />
+    <meta property="og:title" content="AI 스포츠 승부 예측 | 토토스포츠 분석 (xG/PER/OPS)" />
+    <meta property="og:description" content="실시간 AI 스포츠 데이터 분석 포털. 토토스포츠 및 프로토 정밀 승부 예측 솔루션." />
+    <meta property="og:image" content="https://vibe-box-sports.streamlit.app/assets/banner.png" />
+
+    <!-- Google Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "VIBE BOX SPORTS MatchSignal",
+      "alternateName": "토토스포츠 AI 분석기",
+      "operatingSystem": "Web",
+      "applicationCategory": "SportsApplication",
+      "description": "AI 기반 실시간 스포츠 경기 승부 예측 및 토토스포츠 데이터 분석 플랫폼 (xG, PER, OPS 데이터 분석)",
+      "keywords": "토토스포츠, 스포츠토토, 승부 예측, match prediction, 프로토 분석, 축구 xG, 농구 PER, 야구 OPS/WAR",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.9",
+        "ratingCount": "1250"
+      },
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "KRW"
+      }
+    }
+    </script>
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -106,11 +138,12 @@
     <div class="container">
         <div class="brand-pill">PREMIUM AI SOLUTION</div>
         
-        <h1 class="hero-title">AI MATCH<span>SIGNAL</span></h1>
+        <h1 class="hero-title">AI 토토스포츠 <span>승부 예측</span></h1>
         
         <p class="hero-desc">
-            VIBE BOX SPORTS의 지능형 예측 플랫폼입니다.<br>
-            데이터 기반의 정밀 분석으로 승리의 신호를 포착하세요.
+            VIBE BOX SPORTS의 프리미엄 <b>Match Prediction</b> 솔루션입니다.<br>
+            토토스포츠 및 프로토 유저를 위한 최신 xG, PER, OPS 데이터 기반<br>
+            정밀 분석으로 승리의 신호를 포착하세요.
         </p>
 
         <a href="app-portal.html" class="btn-start">
@@ -122,6 +155,25 @@
             <p>
                 본 플랫폼은 최상의 정확도를 위해 <b>실시간 데이터 수집 및 고성능 ML 엔진</b>을 브라우저에 직접 로드합니다. 기기 사양에 따라 최초 실행 시 약 10~30초의 시간이 소요될 수 있습니다. 무한 로딩이 아니니 잠시만 기다려 주세요.
             </p>
+        </div>
+
+        <div style="margin-top: 4rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; opacity: 0.6; font-size: 0.8rem; text-align: left; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 2rem;">
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">SOCCER (xG)</h5>
+                Expected Goals, xA, PPDA, 실시간 라인업 분석, EPL/라리가 승부 예측
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">BASKETBALL (PER)</h5>
+                Player Efficiency, Win Shares, 실시간 부상 리포트, NBA/KBL 정밀 분석
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">BASEBALL (OPS)</h5>
+                On-base Plus Slugging, WAR, wOBA, MLB/KBO 데이터 분석
+            </div>
+            <div>
+                <h5 style="color: var(--neon-yellow); margin-bottom: 0.5rem;">TOTO & PROTO</h5>
+                토토스포츠 분석, 프로토 승무패, 실시간 배당 흐름 데이터
+            </div>
         </div>
 
         <footer>

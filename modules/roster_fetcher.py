@@ -94,7 +94,8 @@ class RosterFetcher:
             'EPL': 'soccer/eng.1',
             'La Liga': 'soccer/esp.1',
             'Bundesliga': 'soccer/ger.1',
-            'Serie A': 'soccer/ita.1'
+            'Serie A': 'soccer/ita.1',
+            'MLS': 'soccer/usa.1'
         }
         
         # 캐시

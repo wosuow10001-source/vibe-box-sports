@@ -521,17 +521,8 @@ class DataCollector:
 
     def get_players(self, team_name):
         """팀의 선수 목록 반환 - RosterFetcher 우선, 실패 시 로컬 데이터"""
-        if self.league == "MLS":
-            use_player_data = False
-        else:
-            use_player_data = True
-            
-        if not use_player_data:
-            if self.debug:
-                print(f"[WARNING] No player data available for MLS - {team_name}")
-            return []
-            
-
+        use_player_data = True
+        
         cache_key = f"players_{self.league}_{team_name}"
         
         # 캐시 만료 확인 (1시간)

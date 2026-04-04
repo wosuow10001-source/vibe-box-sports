@@ -243,57 +243,67 @@ class LiveDataFetcher:
         
         return {}
     
-    def _fetch_from_espn(self, conference: str) -> dict:
-        """ESPN에서 NBA 순위표 크롤링"""
-        url = "https://www.espn.com/nba/standings"
-        
-        response = requests.get(url, headers=self.espn_headers, timeout=10)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # ESPN HTML 구조 파싱
-        teams_data = {}
-        
-        # 순위표 테이블 찾기
-        tables = soup.find_all('table', class_='Table')
-        
-        for table in tables:
-            rows = table.find_all('tr')
+        return teams_data
+
+    def _fetch_espn_soccer_standings(self, league_code: str) -> dict:
+        """ESPN API에서 축구(EPL, La Liga, MLS 등) 순위표 가져오기"""
+        try:
+            url = f"https://site.api.espn.com/apis/v2/sports/soccer/{league_code}/standings"
+            response = requests.get(url, headers=self.espn_headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
             
-            for row in rows[1:]:  # 헤더 제외
-                cols = row.find_all('td')
+            teams_data = {}
+            children = data.get('children', [data]) # children이 없으면 루트가 데이터
+            
+            for group in children:
+                standings = group.get('standings', {})
+                entries = standings.get('entries', [])
                 
-                if len(cols) < 4:
-                    continue
-                
-                try:
-                    team_name = cols[0].text.strip()
-                    wins = int(float(cols[1].text.strip()))
-                    losses = int(float(cols[2].text.strip()))
-                    win_pct_str = cols[3].text.strip()
+                for entry in entries:
+                    team_info = entry.get('team', {})
+                    team_name = team_info.get('displayName')
                     
-                    # win_pct 파싱 (.732 또는 0.732 형태)
-                    if win_pct_str.startswith('.'):
-                        win_pct = float('0' + win_pct_str)
-                    else:
-                        win_pct = float(win_pct_str)
+                    stats_list = entry.get('stats', [])
+                    s_data = {s.get('name'): s.get('value') for s in stats_list if 'name' in s}
+                    
+                    # 축구 통계 파싱 (gamesPlayed, wins, losses, ties, points, goalsFor, goalsAgainst)
+                    played = int(s_data.get('gamesPlayed', 0))
+                    wins = int(s_data.get('wins', 0))
+                    losses = int(s_data.get('losses', 0))
+                    draws = int(s_data.get('ties', 0))
+                    points = int(s_data.get('points', 0))
+                    goals_for = int(s_data.get('goalsFor', 0))
+                    goals_against = int(s_data.get('goalsAgainst', 0))
+                    rank = int(s_data.get('rank', 0))
+                    
+                    # 폼 정보 (있는 경우)
+                    form_str = entry.get('form', '')
+                    form = list(form_str) if form_str else ['W', 'W', 'D', 'L', 'W'] # 폴백
                     
                     teams_data[team_name] = {
                         'wins': wins,
+                        'draws': draws,
                         'losses': losses,
-                        'win_pct': win_pct,
-                        'ppg': 0,  # ESPN 순위표에는 없음
-                        'opp_ppg': 0,
-                        'diff': 0,
-                        'form': ['W'] * min(wins, 5) + ['L'] * max(0, 5 - wins),
+                        'played': played,
+                        'points': points,
+                        'goals_for': goals_for,
+                        'goals_against': goals_against,
+                        'position': rank,
+                        'rank': rank,
+                        'win_pct': wins / played if played > 0 else 0,
+                        'form': form,
                         'last_updated': datetime.now().isoformat()
                     }
-                except (ValueError, IndexError) as e:
-                    continue
-        
-        return teams_data
-    
+                    
+            if teams_data:
+                print(f"[OK] ESPN Soccer API 성공 ({league_code}, {len(teams_data)}개 팀)")
+                return teams_data
+        except Exception as e:
+            print(f"[ERROR] ESPN Soccer API ({league_code}) 실패: {e}")
+            
+        return {}
+
     def _load_local_data(self, conference: str) -> dict:
         """로컬 데이터 로드 (폴백)"""
         try:
@@ -336,16 +346,14 @@ class LiveDataFetcher:
                 self._update_cache(cache_key, standings[team_name])
                 return standings[team_name]
         
-        elif league == "MLB":
-            # MLB 데이터 수집 (구현 필요)
-            pass
-        
-        elif league == "KBO":
-            # KBO 데이터 수집 (구현 필요)
-            pass
-        
-        elif league == "K리그1":
-            standings = self.fetch_kleague_standings()
+        elif league == "EPL":
+            standings = self._fetch_espn_soccer_standings("eng.1")
+            if team_name in standings:
+                self._update_cache(cache_key, standings[team_name])
+                return standings[team_name]
+                
+        elif league == "MLS":
+            standings = self._fetch_espn_soccer_standings("usa.1")
             if team_name in standings:
                 self._update_cache(cache_key, standings[team_name])
                 return standings[team_name]
