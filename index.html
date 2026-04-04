@@ -2,174 +2,131 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>VIBE BOX SPORTS | AI MatchSignal</title>
+    <title>VIBE BOX SPORTS | AI MatchSignal Portal</title>
+    
     <!-- SEO Meta Tags -->
-    <meta name="description" content="AI 기반 스포츠 경기 예측 플랫폼. 해외축구, NBA, MLB, KBL 실시간 분석 및 정밀 예측 제공." />
+    <meta name="description" content="AI 기반 프리미엄 스포츠 경기 예측 플랫폼. 해외축구, NBA, MLB, KBL 실시간 데이터 수집 및 정밀 예측 서비스." />
+    <meta property="og:title" content="VIBE BOX SPORTS | AI MatchSignal" />
+    <meta property="og:description" content="실시간 AI 스포츠 데이터 분석 포털" />
+    
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
-    <!-- Stlite Styles -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Background Prefetch for optimization -->
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.js" as="script">
+    <link rel="prefetch" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.css" as="style">
+    
     <style>
         :root {
             --neon-yellow: #CCFF00;
             --dark-bg: #0f172a;
-            --glass-bg: rgba(255, 255, 255, 0.05);
+            --darkER-bg: #050a16;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body { 
-            margin: 0; padding: 0; background-color: var(--dark-bg); color: white; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; 
-            height: 100vh; font-family: 'Outfit', 'Inter', sans-serif;
-            overflow: hidden;
-        }
-        #stlite { width: 100%; height: 100vh; visibility: hidden; }
-        
-        #loading-container {
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
-            width: 100%; height: 100%; position: absolute; z-index: 100;
-            transition: opacity 0.5s ease;
+            background-color: var(--darkER-bg); color: white; 
+            font-family: 'Outfit', 'Inter', sans-serif;
+            min-height: 100vh; overflow-x: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
         }
 
-        .loader-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(10px);
-            padding: 3rem;
-            border-radius: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            max-width: 400px;
-            width: 90%;
+        /* Ambient Glows */
+        .glow {
+            position: absolute; width: 400px; height: 300px;
+            background: radial-gradient(circle, var(--neon-yellow) 0%, transparent 70%);
+            filter: blur(120px); opacity: 0.08; z-index: -1; animation: pulse 8s infinite alternate;
+        }
+        @keyframes pulse { to { transform: scale(1.2); opacity: 0.12; } }
+
+        .container {
+            max-width: 800px; width: 100%; padding: 2rem; text-align: center; z-index: 10;
         }
 
-        .brand-logo {
-            font-size: 2.5rem; font-weight: 800; color: var(--neon-yellow); 
-            margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: -2px;
-            text-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+        .brand-pill {
+            display: inline-block; padding: 0.5rem 1.5rem; background: var(--glass-bg);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 100px;
+            font-size: 0.8rem; font-weight: 700; letter-spacing: 2px; color: var(--neon-yellow);
+            margin-bottom: 2rem; backdrop-filter: blur(10px);
         }
 
-        .spinner { 
-            border: 3px solid rgba(255, 255, 255, 0.1); border-left-color: var(--neon-yellow); 
-            border-radius: 50%; width: 50px; height: 50px; 
-            animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; margin: 2rem auto; 
+        .hero-title {
+            font-size: clamp(3rem, 10vw, 5.5rem); font-weight: 900; line-height: 0.95;
+            letter-spacing: -3px; margin-bottom: 1.5rem; text-transform: uppercase;
+        }
+        .hero-title span { color: var(--neon-yellow); }
+
+        .hero-desc {
+            font-size: 1.2rem; line-height: 1.6; color: #94a3b8; max-width: 600px; margin: 0 auto 3rem;
+            font-weight: 400;
         }
 
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .progress-bar {
-            width: 100%; height: 4px; background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px; margin-top: 1rem; overflow: hidden;
+        .btn-start {
+            display: inline-block; padding: 1.2rem 3rem; background: var(--neon-yellow);
+            color: black; font-weight: 800; font-size: 1.2rem; text-transform: uppercase;
+            border-radius: 1rem; cursor: pointer; text-decoration: none;
+            transition: var(--transition); border: none;
+            box-shadow: 0 0 30px rgba(204, 255, 0, 0.3);
+            position: relative; overflow: hidden;
         }
-        .progress-fill {
-            height: 100%; background: var(--neon-yellow); width: 0%;
-            transition: width 0.3s ease;
-            box-shadow: 0 0 10px var(--neon-yellow);
+        .btn-start:hover { transform: translateY(-5px); box-shadow: 0 10px 40px rgba(204, 255, 0, 0.5); }
+        .btn-start:active { transform: translateY(0); }
+
+        .warning-box {
+            margin-top: 4rem; padding: 1.5rem; background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem;
+            max-width: 500px; margin-left: auto; margin-right: auto;
+        }
+        .warning-box h4 { font-size: 0.9rem; color: #ef4444; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .warning-box p { font-size: 0.85rem; color: #64748b; line-height: 1.5; }
+
+        footer {
+            margin-top: 5rem; padding-bottom: 2rem; font-size: 0.8rem; color: #475569;
         }
 
-        .status-text { font-size: 0.9rem; color: #94a3b8; font-weight: 500; margin-top: 1.5rem; min-height: 1.2rem; }
-        
-        .bg-glow {
-            position: absolute; width: 300px; height: 300px;
-            background: var(--neon-yellow); filter: blur(150px);
-            opacity: 0.05; border-radius: 50%; z-index: -1;
+        /* Mobile Adjustments */
+        @media (max-width: 640px) {
+            .hero-title { font-size: 3.5rem; }
+            .container { padding: 1.5rem; }
+            .btn-start { width: 100%; }
         }
     </style>
 </head>
 <body>
-    <div id="loading-container">
-        <div class="bg-glow"></div>
-        <div class="loader-card">
-            <div class="brand-logo">VIBE BOX</div>
-            <div style="font-weight: 700; color: white; opacity: 0.8; letter-spacing: 1px;">AI MATCH SIGNAL</div>
-            <div class="spinner"></div>
-            <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">시스템 부팅 중...</div>
-            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <p class="status-text" id="statusText">초기 설정 중...</p>
+    <div class="glow" style="top: 10%; left: 10%;"></div>
+    <div class="glow" style="bottom: 10%; right: 10%;"></div>
+
+    <div class="container">
+        <div class="brand-pill">PREMIUM AI SOLUTION</div>
+        
+        <h1 class="hero-title">AI MATCH<span>SIGNAL</span></h1>
+        
+        <p class="hero-desc">
+            VIBE BOX SPORTS의 지능형 예측 플랫폼입니다.<br>
+            데이터 기반의 정밀 분석으로 승리의 신호를 포착하세요.
+        </p>
+
+        <a href="app-portal.html" class="btn-start">
+            AI 엔진 시작하기
+        </a>
+
+        <div class="warning-box">
+            <h4>💡 LOADING NOTICE</h4>
+            <p>
+                본 플랫폼은 최상의 정확도를 위해 <b>실시간 데이터 수집 및 고성능 ML 엔진</b>을 브라우저에 직접 로드합니다. 기기 사양에 따라 최초 실행 시 약 10~30초의 시간이 소요될 수 있습니다. 무한 로딩이 아니니 잠시만 기다려 주세요.
+            </p>
         </div>
+
+        <footer>
+            &copy; 2026 VIBE BOX SPORTS. All Rights Reserved.
+        </footer>
     </div>
-    
-    <div id="stlite"></div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.58.0/build/stlite.js"></script>
-    <script>
-        async function loadApp() {
-            const statusText = document.getElementById('statusText');
-            const progressFill = document.getElementById('progressFill');
-            
-            const updateUI = (text, percent) => {
-                statusText.innerText = text;
-                progressFill.style.width = percent + '%';
-            };
-
-            try {
-                updateUI("프로젝트 매니페스트 불러오는 중...", 20);
-                const response = await fetch('stlite-manifest.json');
-                if (!response.ok) throw new Error('매니페스트 파일을 찾을 수 없습니다.');
-                const filesRaw = await response.json();
-
-                updateUI("가상 파일 시스템 구축 중...", 40);
-                const stliteFiles = {};
-                for (const [path, data] of Object.entries(filesRaw)) {
-                    if (typeof data === 'object' && data.content) {
-                        if (data.encoding === 'base64') {
-                            // Binary files (DB, images) decoding properly for stlite
-                            const binaryString = window.atob(data.content);
-                            const len = binaryString.length;
-                            const bytes = new Uint8Array(len);
-                            for (let i = 0; i < len; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                            }
-                            stliteFiles[path] = { "data": bytes };
-                        } else {
-                            stliteFiles[path] = data.content;
-                        }
-                    } else {
-                        stliteFiles[path] = data;
-                    }
-                }
-
-                updateUI("Python 엔진 부팅 중 (약 10초)...", 70);
-                stlite.mount({
-                    requirements: [
-                        "streamlit", "pandas", "numpy", "scipy", "pillow", 
-                        "beautifulsoup4", "lxml", "qrcode", "scikit-learn",
-                        "requests", "schedule", "sqlite3"
-                    ],
-                    entrypoint: "app.py",
-                    files: stliteFiles,
-                }, document.getElementById("stlite"));
-
-                // Monitor for the app to be ready
-                updateUI("애플리케이션 준비 중...", 90);
-                
-                // Hide loader once stlite container starts rendering
-                const checkReady = setInterval(() => {
-                    const stliteContainer = document.getElementById('stlite');
-                    if (stliteContainer.children.length > 0) {
-                        updateUI("완료!", 100);
-                        setTimeout(() => {
-                            document.getElementById('loading-container').style.opacity = '0';
-                            document.getElementById('stlite').style.visibility = 'visible';
-                            setTimeout(() => {
-                                document.getElementById('loading-container').style.display = 'none';
-                            }, 500);
-                        }, 500);
-                        clearInterval(checkReady);
-                    }
-                }, 500);
-
-            } catch (err) {
-                console.error(err);
-                statusText.innerHTML = `<span style="color: #ef4444;">오류: ${err.message}</span>`;
-                progressFill.style.backgroundColor = "#ef4444";
-            }
-        }
-
-        loadApp();
-    </script>
 </body>
 </html>
