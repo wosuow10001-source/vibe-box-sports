@@ -13,6 +13,7 @@ from math import factorial, exp
 import pickle
 from pathlib import Path
 from modules.advanced_soccer_metrics import get_soccer_metrics
+from modules.predictor_soccer_v3 import SoccerEngineV3
 
 
 class SoccerPredictor:
@@ -81,126 +82,87 @@ class SoccerPredictor:
         injury_impact = self._analyze_injury_impact(injury_data)
         coaching_impact = self._analyze_coaching_impact(coaching_data, home_data, away_data)
         
-        # ========== 2단계: 기대 득점 λ 계산 (리그 보정 적용) ==========
-        lambda_home = self._calculate_expected_goals(
-            league=league,
-            team_data=home_data,
-            opponent_data=away_data,
-            is_home=True,
-            form=form_score['home'],
-            home_advantage=home_advantage,
-            player_condition=player_condition['home'],
-            tactical=tactical_score['home'],
-            weather=weather_impact['home'],
-            rest=rest_impact['home'],
-            motivation=motivation_score,
-            injury=injury_impact['home'],
-            coaching=coaching_impact['home'],
-            rest_days_home=rest_days_home,
-            rest_days_away=rest_days_away,
-            injury_data=injury_data
-        )
+        # ========== 2단계: V3 엔진용 데이터 매핑 ==========
+        # 리그 ID 정규화 (EPL, LA_LIGA, SERIE_A 등)
+        league_id_map = {
+            "EPL": "EPL", "La Liga": "LA_LIGA", "Serie A": "SERIE_A"
+        }
+        v3_league_id = league_id_map.get(league, "DEFAULT")
         
-        lambda_away = self._calculate_expected_goals(
-            league=league,
-            team_data=away_data,
-            opponent_data=home_data,
-            is_home=False,
-            form=form_score['away'],
-            home_advantage=0,
-            player_condition=player_condition['away'],
-            tactical=tactical_score['away'],
-            weather=weather_impact['away'],
-            rest=rest_impact['away'],
-            motivation=motivation_score,
-            injury=injury_impact['away'],
-            coaching=coaching_impact['away'],
-            rest_days_home=rest_days_home,
-            rest_days_away=rest_days_away,
-            injury_data=injury_data
-        )
+        # 피처 추출
+        def extract_v3_features(team_data, form_val):
+            return {
+                "rank": team_data.get('rank', 10),
+                "points": team_data.get('points', 0),
+                "recent_form": form_val,
+                "xG": team_data.get('team_xg', team_data.get('avg_goals', 1.5)),
+                "xGA": team_data.get('team_xga', team_data.get('avg_conceded', 1.5)),
+                "goal_difference": team_data.get('goal_bias', team_data.get('goal_difference', 0)),
+                "points_per_game": team_data.get('ppg', 1.3)
+            }
         
-        # ========== 3단계: 득점 상관(λ_C) 계산 ==========
-        # 리그별 기본 λ_C 가져오기
-        league_cal = self.LEAGUE_CALIBRATION.get(league, self.LEAGUE_CALIBRATION["EPL"])
-        lambda_c = league_cal["lambda_c"]
+        home_features = extract_v3_features(home_data, form_score['home'])
+        away_features = extract_v3_features(away_data, form_score['away'])
         
-        # 전술적 성향 (PPDA) 반영: PPDA 차이가 작으면 난타전 성향 (λ_C 증가)
-        ppda_home = home_data.get('ppda', 12.0)
-        ppda_away = away_data.get('ppda', 12.0)
-        if abs(ppda_home - ppda_away) < 2.0:
-            lambda_c *= 1.2 # 더 열린 경기
-            
-        # ========== 4단계: 100,000회 시뮬레이션 실행 (Poisson) ==========
-        sim_results = self._run_simulation(lambda_home, lambda_away, lambda_c, league, num_sims=100000)
-        poisson_probs = {
-            'home': sim_results['home_win_prob'],
-            'draw': sim_results['draw_prob'],
-            'away': sim_results['away_win_prob']
+        # 경기 컨텍스트 매핑
+        importance_map = {"일반": 0.5, "중요": 0.75, "매우중요": 1.0}
+        context = {
+            "importance": importance_map.get(match_importance, 0.5),
+            "rest_days_home": rest_days_home,
+            "rest_days_away": rest_days_away,
+            "injuries_home": injury_data.get('home', []) if injury_data else [],
+            "injuries_away": injury_data.get('away', []) if injury_data else [],
+            "is_home": True
         }
         
-        # ========== 5단계: ML (Gradient Boosting) 확률 보정 ==========
-        ml_probs = self._predict_ml_outcome_probs(
-            home_data, away_data, league, 
-            weather_impact, rest_impact, injury_impact, coaching_impact,
-            form_score, rank_diff=abs(home_data.get('rank', 10) - away_data.get('rank', 10))
-        )
+        # ========== 3단계: V3 엔진 실행 (Negative Binomial) ==========
+        engine = SoccerEngineV3()
+        v3_res = engine.predict_match(v3_league_id, home_features, away_features, context)
         
-        # ========== 6단계: Hybrid 확률 결합 (60% Poisson + 40% ML) ==========
-        final_home_prob = 0.6 * poisson_probs['home'] + 0.4 * ml_probs['home']
-        final_draw_prob = 0.6 * poisson_probs['draw'] + 0.4 * ml_probs['draw']
-        final_away_prob = 0.6 * poisson_probs['away'] + 0.4 * ml_probs['away']
+        # ========== 4단계: 결과 정규화 및 UI 호환성 확보 ==========
+        final_home_prob = v3_res['win_probabilities']['home']
+        final_draw_prob = v3_res['win_probabilities']['draw']
+        final_away_prob = v3_res['win_probabilities']['away']
         
-        # 정규화
-        total_p = final_home_prob + final_draw_prob + final_away_prob
-        final_home_prob /= total_p
-        final_draw_prob /= total_p
-        final_away_prob /= total_p
-        
-        # 주요 영향 요인
+        # 주요 영향 요인 식별
         key_factors = self._identify_key_factors(
             form_score, home_advantage, player_condition, 
             tactical_score, weather_impact, rest_impact, injury_impact, coaching_impact
         )
         
-        # 신뢰도 계산 (Entropy 기반)
-        probs = [final_home_prob, final_draw_prob, final_away_prob]
-        entropy = -sum(p * np.log2(p + 1e-9) for p in probs)
-        # Normalized Entropy (0~1)
-        norm_entropy = entropy / 1.5849 # log2(3)
-        confidence_score = 1.0 - norm_entropy
-        
-        # 베팅 인사이트 생성 (최종 확률 기준)
-        final_sim = sim_results.copy()
-        final_sim.update({
+        # 베팅 인사이트
+        betting_insight = self._generate_betting_insight({
             'home_win_prob': final_home_prob,
-            'draw_prob': final_draw_prob,
-            'away_win_prob': final_away_prob
+            'away_win_prob': final_away_prob,
+            'over_2_5_prob': v3_res['markets']['over_2_5'],
+            'btts_prob': v3_res['markets']['btts_yes']
         })
-        betting_insight = self._generate_betting_insight(final_sim)
+        
+        # 스코어 형식 변환
+        top_5_scores = [((s['home_goals'], s['away_goals']), s['prob']) for s in v3_res['scorelines_top5']]
         
         return {
             'home_win_prob': final_home_prob,
             'draw_prob': final_draw_prob,
             'away_win_prob': final_away_prob,
-            'expected_score_home': sim_results['expected_score_home'],
-            'expected_score_away': sim_results['expected_score_away'],
-            'top_3_scores': sim_results['top_5_scores'][:3],
-            'top_5_scores': sim_results['top_5_scores'],
-            'over_2_5_prob': sim_results['over_2_5_prob'],
-            'over_3_5_prob': sim_results['over_3_5_prob'],
-            'btts_prob': sim_results['btts_prob'],
+            'expected_score_home': v3_res['scorelines_top5'][0]['home_goals'],
+            'expected_score_away': v3_res['scorelines_top5'][0]['away_goals'],
+            'top_3_scores': top_5_scores[:3],
+            'top_5_scores': top_5_scores,
+            'over_2_5_prob': v3_res['markets']['over_2_5'],
+            'over_3_5_prob': v3_res['markets']['over_3_5'],
+            'btts_prob': v3_res['markets']['btts_yes'],
             'double_chance': {
                 '1X': final_home_prob + final_draw_prob,
                 'X2': final_away_prob + final_draw_prob,
                 '12': final_home_prob + final_away_prob
             },
-            'lambda_home': round(lambda_home, 2),
-            'lambda_away': round(lambda_away, 2),
-            'lambda_c': round(lambda_c, 2),
+            'lambda_home': v3_res['expected_goals']['home_xG'],
+            'lambda_away': v3_res['expected_goals']['away_xG'],
+            'lambda_c': v3_res['meta']['strength_diff_scaled'], # V3에서는 스케일링된 전력차를 참고용으로 표시
             'key_factors': key_factors,
-            'confidence_score': confidence_score,
-            'confidence': 'high' if confidence_score > 0.75 else 'medium' if confidence_score > 0.55 else 'low',
+            'confidence_score': 0.8 if v3_res['meta']['confidence'] == 'high' else 0.6 if v3_res['meta']['confidence'] == 'medium' else 0.4,
+            'confidence': v3_res['meta']['confidence'],
             'betting_insight': betting_insight,
             'detailed_scores': {
                 'form': form_score,
