@@ -670,7 +670,16 @@ class SoccerPredictor:
         # ========== 1. 기본 실력 반영 (시즌 평균) ==========
         team_goals = team_data.get('avg_goals', 1.5)
         opp_conceded = opponent_data.get('avg_conceded', 1.5)
-        base_lambda = (team_goals + opp_conceded) / 2
+        
+        # [Sanity Check] 데이터 누락/오류로 인한 0.00 방지 하한선 설정
+        # 상위권(1~5위)은 최소 1.2, 중위권(6~12위)은 1.0, 하위권은 0.8 보장
+        my_rank = team_data.get('rank', 10)
+        min_stat = 1.2 if my_rank <= 5 else 1.0 if my_rank <= 12 else 0.8
+        
+        effective_team_goals = max(min_stat, team_goals)
+        effective_opp_conceded = max(min_stat, opp_conceded)
+        
+        base_lambda = (effective_team_goals + effective_opp_conceded) / 2
         base_lambda *= league_attack_f
         
         if is_home:

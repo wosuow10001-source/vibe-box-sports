@@ -228,31 +228,48 @@ class DataCollector:
             star_ppg_list.sort(reverse=True)
             star_power_ppg = sum(star_ppg_list[:3]) if star_ppg_list else 0
             
-            # 실제 데이터를 시스템 형식으로 변환
-            # MLB 데이터 먼저 확인 (runs_for/runs_against 사용)
+            # 데이터 처리 및 통계적 검증 (Sanity Check)
+            def sanitize_stat(value, fallback_value):
+                """기본적인 스탯 검증 및 폴백"""
+                try:
+                    val = float(value)
+                    if val <= 0.001:  # 거의 0인 경우
+                        return fallback_value
+                    return val
+                except:
+                    return fallback_value
+
             if 'runs_for' in real_stats:
                 total_games = real_stats['wins'] + real_stats['losses']
-                avg_runs_for = real_stats['runs_for'] / total_games if total_games > 0 else 0
-                avg_runs_against = real_stats['runs_against'] / total_games if total_games > 0 else 0
+                raw_avg_runs_for = real_stats['runs_for'] / total_games if total_games > 0 else 0
+                raw_avg_runs_against = real_stats['runs_against'] / total_games if total_games > 0 else 0
                 
+                # 순위 기반 폴백 (야구 평균 4.5~5.0)
+                rank = real_stats.get('position', 5)
+                fb_for = 5.0 - (rank * 0.1)
+                fb_against = 4.0 + (rank * 0.1)
+                
+                avg_runs_for = sanitize_stat(raw_avg_runs_for, fb_for)
+                avg_runs_against = sanitize_stat(raw_avg_runs_against, fb_against)
+
                 data = {
                     'team_name': team_name,
-                    'recent_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0),
-                    'home_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0) * 1.1,
-                    'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0) * 0.9,
-                    'avg_goals': avg_runs_for,  # 야구는 runs를 goals로 매핑
+                    'recent_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5),
+                    'home_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 1.1,
+                    'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 0.9,
+                    'avg_goals': avg_runs_for,
                     'avg_conceded': avg_runs_against,
-                    'recent_form': real_stats.get('form', ['W', 'W', 'L', 'W', 'W']),
+                    'recent_form': real_stats.get('form', ['W', 'L', 'W', 'W', 'L']),
                     'possession_avg': 50,
-                    'shots_avg': avg_runs_for * 2,  # 야구는 안타 수 추정
+                    'shots_avg': avg_runs_for * 2,
                     'pass_accuracy': 80,
                     'recent_matches': self._generate_recent_matches(team_name, 10),
                     'real_data': True,
+                    'is_estimated': raw_avg_runs_for <= 0.001,
                     'wins': real_stats['wins'],
                     'losses': real_stats['losses'],
                     'runs_for': real_stats['runs_for'],
                     'runs_against': real_stats['runs_against'],
-                    # 선수 능력치 추가
                     'avg_player_rating': avg_player_rating,
                     'avg_player_condition': avg_player_condition,
                     'squad_depth': len(players)
@@ -264,27 +281,38 @@ class DataCollector:
                 draws = real_stats.get('draws', 0)
                 losses = real_stats['losses']
                 
+                raw_avg_goals = real_stats['goals_for'] / total_matches if total_matches > 0 else 0
+                raw_avg_conceded = real_stats['goals_against'] / total_matches if total_matches > 0 else 0
+                
+                # 순위 기반 폴백 (전용 로직: 상위권일수록 득점 기대치 높임)
+                rank = real_stats.get('position', 10)
+                fb_goals = 1.8 - (rank * 0.04) # 1위는 약 1.76, 20위는 약 1.0
+                fb_conceded = 1.0 + (rank * 0.04) # 1위는 약 1.04, 20위는 약 1.8
+                
+                avg_goals = sanitize_stat(raw_avg_goals, fb_goals)
+                avg_conceded = sanitize_stat(raw_avg_conceded, fb_conceded)
+                
                 data = {
                     'team_name': team_name,
-                    'recent_winrate': wins / total_matches if total_matches > 0 else 0,
-                    'home_winrate': (wins / total_matches * 1.15) if total_matches > 0 else 0,
-                    'away_winrate': (wins / total_matches * 0.85) if total_matches > 0 else 0,
-                    'avg_goals': real_stats['goals_for'] / total_matches,
-                    'avg_conceded': real_stats['goals_against'] / total_matches,
-                    'xg': real_stats.get('xg', real_stats['goals_for'] / total_matches),
-                    'xga': real_stats.get('xga', real_stats['goals_against'] / total_matches),
+                    'recent_winrate': wins / total_matches if total_matches > 0 else 0.5,
+                    'home_winrate': (wins / total_matches * 1.15) if total_matches > 0 else 0.5,
+                    'away_winrate': (wins / total_matches * 0.85) if total_matches > 0 else 0.4,
+                    'avg_goals': avg_goals,
+                    'avg_conceded': avg_conceded,
+                    'xg': real_stats.get('xg', avg_goals),
+                    'xga': real_stats.get('xga', avg_conceded),
                     'ppda': real_stats.get('ppda', 12.0),
                     'travel_distance': real_stats.get('travel_distance', 0) if self.league == "MLS" else 0,
-                    'recent_form': real_stats.get('form', ['W', 'W', 'W', 'D', 'L']),
-                    'possession_avg': real_stats.get('possession', 50 + (real_stats['points'] / total_matches - 1.5) * 5),
-                    'shots_avg': real_stats['goals_for'] / total_matches * 5,
-                    'pass_accuracy': 75 + (real_stats['points'] / total_matches - 1) * 5,
+                    'recent_form': real_stats.get('form', ['W', 'D', 'W', 'W', 'L']),
+                    'possession_avg': real_stats.get('possession', 50 + (real_stats['points'] / max(1, total_matches) - 1.5) * 5),
+                    'shots_avg': avg_goals * 5,
+                    'pass_accuracy': 75 + (real_stats['points'] / max(1, total_matches) - 1) * 5,
                     'recent_matches': self._generate_recent_matches_from_real(real_stats),
                     'real_data': True,
-                    'position': real_stats.get('position', 10),
+                    'is_estimated': raw_avg_goals <= 0.001,
+                    'position': rank,
                     'points': real_stats.get('points', 0),
-                    'rank': real_stats.get('position', 10),
-                    # 선수 능력치 추가
+                    'rank': rank,
                     'avg_player_rating': avg_player_rating,
                     'avg_player_condition': avg_player_condition,
                     'squad_depth': len(players)
@@ -305,19 +333,20 @@ class DataCollector:
                 # NBA/KBL/배구 데이터 처리
                 data = {
                     'team_name': team_name,
-                    'recent_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0),
-                    'home_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0) * 1.1,
-                    'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0) * 0.9,
-                    'avg_goals': avg_sets_won,
-                    'avg_conceded': avg_sets_lost,
-                    'ppg': real_stats.get('ppg', avg_sets_won),  # NBA 평균 득점
-                    'opp_ppg': real_stats.get('opp_ppg', avg_sets_lost),  # NBA 평균 실점
-                    'recent_form': real_stats.get('form', ['W', 'W', 'L', 'W', 'W']),
+                    'recent_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5),
+                    'home_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 1.1,
+                    'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 0.9,
+                    'avg_goals': sanitize_stat(avg_sets_won, 105.0 if 'NBA' in self.league else 1.5),
+                    'avg_conceded': sanitize_stat(avg_sets_lost, 105.0 if 'NBA' in self.league else 1.5),
+                    'ppg': sanitize_stat(real_stats.get('ppg', avg_sets_won), 105.0 if 'NBA' in self.league else 1.5),
+                    'opp_ppg': sanitize_stat(real_stats.get('opp_ppg', avg_sets_lost), 105.0 if 'NBA' in self.league else 1.5),
+                    'recent_form': real_stats.get('form', ['W', 'W', 'L', 'L', 'W']),
                     'possession_avg': 50,
                     'shots_avg': avg_sets_won / 2 if avg_sets_won > 0 else 0,
                     'pass_accuracy': 80,
                     'recent_matches': self._generate_recent_matches(team_name, 10),
                     'real_data': True,
+                    'is_estimated': avg_sets_won <= 0.001,
                     'wins': real_stats['wins'],
                     'losses': real_stats['losses'],
                     'home': real_stats.get('home', '0-0'),  # 홈 전적
