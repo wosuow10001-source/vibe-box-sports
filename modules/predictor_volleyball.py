@@ -152,6 +152,17 @@ class VolleyballPredictor:
         # 세트 승률 조정
         adjusted_prob = base_prob * total_factor
         
+        # [Sanity Check] 순위 기반 최소 세트 승률 보정 (Top-tier Protection)
+        # 상위권 팀이 데이터 부재 상황에서도 합리적인 우위를 점할 수 있도록 보정
+        my_rank = team_data.get('rank', team_data.get('position', 4))
+        opp_rank = opponent_data.get('rank', opponent_data.get('position', 4))
+        
+        if my_rank > 0 and opp_rank > 0 and my_rank < opp_rank:
+            rank_diff = opp_rank - my_rank
+            # 순위 차이에 따른 최소 승률 보정 (1계단당 1.5%p)
+            min_prob = 0.52 + (rank_diff * 0.015)
+            adjusted_prob = max(min_prob, adjusted_prob)
+        
         # 정규화 (0.1 ~ 0.9)
         return max(0.1, min(0.9, adjusted_prob))
     

@@ -530,6 +530,14 @@ class BasketballPredictorLeagueNormalized:
         
         ppp = defense_adjusted_ppp * 0.92 + (defense_adjusted_ppp + model_adjustment) * 0.08
         
+        # [Sanity Check] 순위 기반 최소 PPP 하한선 설정 (Top-tier Protection)
+        # 상위권 팀이 데이터 오류로 과소평가되는 것을 방지
+        min_ppp = 1.12 if my_rank <= 3 else 1.08 if my_rank <= 7 else 1.02
+        if self.league == "KBL":
+            min_ppp -= 0.04 # KBL은 전반적으로 PPP가 낮음을 반영
+            
+        ppp = max(min_ppp, ppp)
+        
         return max(0.95, min(1.22, ppp))
     
     def _adjust_defense(self, ppp: float, opp_def_rating: float) -> float:

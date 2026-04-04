@@ -171,6 +171,13 @@ class BaseballPredictor:
             coaching_factor
         )
         
+        # [Sanity Check] 순위 기반 최소 기대 득점(Runs) 하한선 설정 (Top-tier Protection)
+        # 상위권 팀이 데이터 부실로 저평가되는 현상 방지
+        rank = team_data.get('rank', team_data.get('position', 5))
+        min_runs = 5.0 if rank <= 3 else 4.0 if rank <= 7 else 3.2
+        
+        expected_runs = max(min_runs, expected_runs)
+        
         # 범위 제한 (1.5~10)
         return max(1.5, min(10.0, expected_runs))
     

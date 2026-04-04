@@ -330,16 +330,28 @@ class DataCollector:
                     avg_sets_won = real_stats.get('ppg', 0)
                     avg_sets_lost = real_stats.get('opp_ppg', 0)
                 
+                # 순위 기반 폴백 데이터 생성 (동적 보정)
+                rank = real_stats.get('rank', real_stats.get('position', 10))
+                if 'NBA' in self.league:
+                    fb_ppg = 118.0 - (rank * 0.5)
+                    fb_opp_ppg = 108.0 + (rank * 0.5)
+                elif self.league == 'KBL':
+                    fb_ppg = 88.0 - (rank * 0.5)
+                    fb_opp_ppg = 78.0 + (rank * 0.5)
+                else: # 배구 등
+                    fb_ppg = 1.8 - (rank * 0.04)
+                    fb_opp_ppg = 1.0 + (rank * 0.04)
+
                 # NBA/KBL/배구 데이터 처리
                 data = {
                     'team_name': team_name,
                     'recent_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5),
                     'home_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 1.1,
                     'away_winrate': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0.5) * 0.9,
-                    'avg_goals': sanitize_stat(avg_sets_won, 105.0 if 'NBA' in self.league else 1.5),
-                    'avg_conceded': sanitize_stat(avg_sets_lost, 105.0 if 'NBA' in self.league else 1.5),
-                    'ppg': sanitize_stat(real_stats.get('ppg', avg_sets_won), 105.0 if 'NBA' in self.league else 1.5),
-                    'opp_ppg': sanitize_stat(real_stats.get('opp_ppg', avg_sets_lost), 105.0 if 'NBA' in self.league else 1.5),
+                    'avg_goals': sanitize_stat(avg_sets_won, fb_ppg),
+                    'avg_conceded': sanitize_stat(avg_sets_lost, fb_opp_ppg),
+                    'ppg': sanitize_stat(real_stats.get('ppg', avg_sets_won), fb_ppg),
+                    'opp_ppg': sanitize_stat(real_stats.get('opp_ppg', avg_sets_lost), fb_opp_ppg),
                     'recent_form': real_stats.get('form', ['W', 'W', 'L', 'L', 'W']),
                     'possession_avg': 50,
                     'shots_avg': avg_sets_won / 2 if avg_sets_won > 0 else 0,
