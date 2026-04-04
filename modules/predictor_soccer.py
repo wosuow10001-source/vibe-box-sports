@@ -272,15 +272,15 @@ class SoccerPredictor:
         for r in results:
             score_counts[r] = score_counts.get(r, 0) + 1
             
-        # [Decisiveness Upgrade] 승리 확률 최상위 팀 정합성 보정 (Winner-Aligned Score Selection)
-        # 단순히 빈도수 1위가 아닌, 승리 확률이 높은 팀의 '승리 스코어' 중 최빈값을 선택
+        # [Decisiveness Balance] 승리 확률 최상위 팀 정합성 보정 (Winner-Aligned Score Selection)
+        # 단순히 빈도수 1위가 아닌, 승리 확률이 확실히 높을 때만 해당 팀의 승리 스코어를 선택
         top_5 = sorted(score_counts.items(), key=lambda x: x[1], reverse=True)[:5]
         
-        # 결정력 부스트: 승리 확률 차이가 10%p 이상이면 해당 팀의 승리 스코어를 우선 권장
+        # 결정력 보정: 승리 확률 차이가 15%p 이상일 때만 승리 스코어 강제 권장 (중위권 박빙성 존중)
         diff_prob = abs(home_win_p - away_win_p)
         favored_score = top_5[0][0]
         
-        if diff_prob > 0.08: # 8%p 이상 차이 시 결정력 강화
+        if diff_prob > 0.15: # 8%p -> 15%p로 문턱 상향 (박빙 상황 무승부 보존)
             winner_scores = []
             if home_win_p > away_win_p:
                 winner_scores = sorted([(k, v) for k, v in score_counts.items() if k[0] > k[1]], key=lambda x: x[1], reverse=True)
@@ -695,18 +695,18 @@ class SoccerPredictor:
         
         raw_xg = team_data.get('xg', team_data.get('team_xg', 0.0))
         if raw_xg <= 0.01:
-            # 추정 xG: 순위가 높을수록(숫자 작을수록) 높은 xG 부여
-            raw_xg = 1.8 - (my_rank * 0.04) 
+            # 추정 xG: 순위가 높을수록 높은 xG 부여 (기존 1.8 -> 1.6 으로 평탄화)
+            raw_xg = 1.6 - (my_rank * 0.03) 
         
         raw_xga = opponent_data.get('xga', opponent_data.get('team_xg_conceded', 0.0))
         if raw_xga <= 0.01:
-            raw_xga = 1.0 + (opp_rank * 0.04)
+            raw_xga = 1.2 + (opp_rank * 0.03)
 
         # [Sanity Check] 데이터 누락/오류로 인한 0.00 방지 하한선 설정
-        min_stat = 1.2 if my_rank <= 5 else 1.0 if my_rank <= 12 else 0.8
+        min_stat = 1.1 if my_rank <= 5 else 0.9 if my_rank <= 12 else 0.7
         
-        effective_team_goals = max(min_stat, team_goals * 0.6 + raw_xg * 0.4)
-        effective_opp_conceded = max(min_stat, opp_conceded * 0.6 + raw_xga * 0.4)
+        effective_team_goals = max(min_stat, team_goals * 0.7 + raw_xg * 0.3) # 가중치 0.6:0.4 -> 0.7:0.3 조정
+        effective_opp_conceded = max(min_stat, opp_conceded * 0.7 + raw_xga * 0.3)
         
         base_lambda = (effective_team_goals + effective_opp_conceded) / 2
         base_lambda *= league_attack_f
@@ -714,16 +714,16 @@ class SoccerPredictor:
         if is_home:
             base_lambda *= league_home_adv
             
-        # ========== 2. 리그 순위 및 전력 차이 보정 (Decisiveness 강화) ==========
-        # 순위 차이에 의한 보정 (순위 1위 차이당 1.5% 보정으로 상향 - 승부 갈림길 명확화)
+        # ========== 2. 리그 순위 및 전력 차이 보정 (Balance 원복) ==========
+        # 순위 차이에 의한 보정 (순위 1위 차이당 1.2% 보정 - 과한 뻥튀기 억제)
         rank_diff = opp_rank - my_rank # 내가 순위가 높으면(숫자가 작으면) 양수
-        rank_bonus = 1.0 + (rank_diff * 0.015)
+        rank_bonus = 1.0 + (rank_diff * 0.012)
         
-        # 전력 차가 큰 경우(5위 차 이상) 결정력 부스트 가동
-        if abs(rank_diff) >= 5:
-            rank_bonus = 1.0 + (rank_diff * 0.025) # 2.5%로 대폭 강화
+        # 전력 차가 매우 큰 경우(8위 차 이상) 점진적 보정 가속
+        if abs(rank_diff) >= 8:
+            rank_bonus = 1.0 + (rank_diff * 0.015) 
             
-        base_lambda *= max(0.70, min(1.35, rank_bonus))
+        base_lambda *= max(0.75, min(1.25, rank_bonus))
             
         # ========== 3. 동적 컨텐츠 모디파이어 ==========
         # 폼 반영 (Weighted Form)
@@ -764,11 +764,11 @@ class SoccerPredictor:
                     base_lambda *= 1.10 # 상대 주요 수비수 결장 시 10% 증가
                     break
 
-        # 기타 요인 통합 (가중치 강화: 부상/코칭/컨디션 영향력을 20% -> 35%로 상향)
-        cond_f = 0.85 + (player_condition * 0.3)
-        tact_f = 0.85 + (tactical * 0.3)
-        weat_f = 0.9 + (weather if isinstance(weather, float) else 0.1) # 날씨 점수화
-        coac_f = 0.9 + (coaching * 0.2)
+        # 기타 요인 통합 (가중치 정상화: 35% -> 20%로 복구하여 람다 인플레이션 방지)
+        cond_f = 0.9 + (player_condition * 0.2)
+        tact_f = 0.9 + (tactical * 0.2)
+        weat_f = 0.95 + (weather if isinstance(weather, float) else 0.05) # 날씨 점수화
+        coac_f = 0.95 + (coaching * 0.1)
         
         final_lambda = (
             base_lambda * form_factor * cond_f * 
