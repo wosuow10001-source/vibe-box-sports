@@ -1,278 +1,311 @@
 """
-Vibe Sports - Advanced Football Match Prediction Engine (V3)
-- Reusable, league-agnostic core engine
-- Negative Binomial goal distribution (Overdispersion modeling)
-- Sigmoid-scaled non-linear strength model
-- Upset Adjustment Layer for realistic favorite/underdog modeling
+Vibe Sports - Advanced Football Match Prediction Engine (V4)
+- Production-grade upgrade from V3
+- Non-linear strength modeling
+- Game State Classifier (OPEN/CLOSED/BALANCED)
+- Negative Binomial Monte Carlo Simulation (50,000 matches)
+- Post-simulation probability rebalancing & upset detection
 """
 
 import math
 import numpy as np
+from typing import Dict, List, Tuple, Any
 
 class LeagueConfig:
-    """
-    League-specific parameter registry
-    """
+    """League-specific parameter registry (V4 optimized)"""
     REGISTRY = {
         "EPL": {
-            "base_home_xG": 1.45,
-            "base_away_xG": 1.25,
-            "home_xG_cap": 2.2,
-            "away_xG_cap": 2.6,
             "base_home_adv": 0.15,
             "relegation_rank_threshold": 18,
             "top_team_rank_threshold": 6,
-            "relegation_def_mul_range": (0.85, 0.92),
-            "relegation_var_mul_range": (1.15, 1.25),
-            "upset_factor_range": (0.05, 0.12),
+            "upset_factor_range": (0.06, 0.12),
         },
         "LA_LIGA": {
-            "base_home_xG": 1.35,
-            "base_away_xG": 1.15,
-            "home_xG_cap": 2.1,
-            "away_xG_cap": 2.5,
             "base_home_adv": 0.14,
             "relegation_rank_threshold": 18,
             "top_team_rank_threshold": 6,
-            "relegation_def_mul_range": (0.87, 0.93),
-            "relegation_var_mul_range": (1.1, 1.2),
-            "upset_factor_range": (0.04, 0.10),
-        },
-        "SERIE_A": {
-            "base_home_xG": 1.30,
-            "base_away_xG": 1.15,
-            "home_xG_cap": 2.1,
-            "away_xG_cap": 2.5,
-            "base_home_adv": 0.13,
-            "relegation_rank_threshold": 18,
-            "top_team_rank_threshold": 6,
-            "relegation_def_mul_range": (0.88, 0.94),
-            "relegation_var_mul_range": (1.1, 1.2),
-            "upset_factor_range": (0.04, 0.10),
+            "upset_factor_range": (0.05, 0.10),
         },
         "DEFAULT": {
-            "base_home_xG": 1.40,
-            "base_away_xG": 1.20,
-            "home_xG_cap": 2.2,
-            "away_xG_cap": 2.6,
             "base_home_adv": 0.14,
             "relegation_rank_threshold": 18,
             "top_team_rank_threshold": 6,
-            "relegation_def_mul_range": (0.86, 0.93),
-            "relegation_var_mul_range": (1.1, 1.2),
             "upset_factor_range": (0.05, 0.11),
-        },
+        }
     }
 
     @staticmethod
     def get(league_id: str) -> dict:
         return LeagueConfig.REGISTRY.get(league_id, LeagueConfig.REGISTRY["DEFAULT"])
 
-
-class SoccerEngineV3:
+class SoccerEngineV4:
     def __init__(self):
-        # Tunable constants
-        self.strength_scale = 1.2    # Sigmoid scaling factor
-        self.adjustment_factor = 0.5  # Strength diff -> xG adjustment
-        self.base_k = 4.0            # Baseline dispersion for NB
-        self.max_goals = 7           # Cutoff for probability matrix
-        self.min_xg = 0.2
-        self.upset_threshold_prob = 0.7
-        self.upset_strength_threshold = 0.5
-
+        self.num_simulations = 50000
+        self.max_xg_cap = 2.5
+        self.min_xg = 0.25
+        self.max_goals_cutoff = 10
+        
     def predict_match(
         self,
         league_id: str,
-        home_team_features: dict,
-        away_team_features: dict,
+        home_feats: dict,
+        away_feats: dict,
         match_context: dict
     ) -> dict:
-        """
-        Main V3 prediction pipeline
-        """
         cfg = LeagueConfig.get(league_id)
         
-        # 1. Compute Team Strengths
-        home_strength = self._calculate_strength(home_team_features)
-        away_strength = self._calculate_strength(away_team_features)
+        # [1] TEAM STRENGTH (NON-LINEAR)
+        home_strength = self._calculate_nonlinear_strength(home_feats)
+        away_strength = self._calculate_nonlinear_strength(away_feats)
         
-        # 2. Non-linear Scaling of Strength Difference
-        strength_diff = away_strength - home_strength
-        scaled_diff = self._sigmoid(strength_diff, scale=self.strength_scale)
+        # [2] BASE EXPECTED GOALS (xG)
+        # home_xg = (home_attack * away_defense_inverse) * home_advantage
+        h_att = home_feats.get('avg_goals', 1.3)
+        a_def = away_feats.get('avg_conceded', 1.3)
+        a_att = away_feats.get('avg_goals', 1.1)
+        h_def = home_feats.get('avg_conceded', 1.2)
         
-        # 3. Base Expected Goals (xG)
-        home_xG = cfg["base_home_xG"] + (scaled_diff * -self.adjustment_factor)
-        away_xG = cfg["base_away_xG"] + (scaled_diff * self.adjustment_factor)
+        home_adv = 1.0 + cfg["base_home_adv"]
         
-        # 4. Home Advantage (Conditional Floor for Relegation Desperation)
-        home_rank = home_team_features.get('rank', 10)
-        home_adv_bonus = 0.075 if home_rank >= cfg["relegation_rank_threshold"] else 0.0
-        home_advantage = cfg["base_home_adv"] + home_adv_bonus
-        home_xG *= (1.0 + home_advantage)
+        home_xg_raw = (h_att * (1.0 / max(0.5, a_def))) * home_adv
+        away_xg_raw = (a_att * (1.0 / max(0.5, h_def)))
         
-        # 5. Relegation Boost (Defensive/Variance Adjustment)
-        away_rank = away_team_features.get('rank', 10)
-        variance_multiplier = 1.0
-        importance = match_context.get('importance', 0.5)
+        # Apply HARD CAPS (Step 2)
+        home_xg = max(self.min_xg, min(home_xg_raw, self.max_xg_cap))
+        away_xg = max(self.min_xg, min(away_xg_raw, self.max_xg_cap))
         
-        if (home_rank >= cfg["relegation_rank_threshold"] and 
-            away_rank <= cfg["top_team_rank_threshold"]):
-            # Defensive tightening: reduce favorite's efficiency
-            def_mul = cfg["relegation_def_mul_range"][0] + (1.0 - importance) * 0.05
-            away_xG *= def_mul
-            # Increase variance for upset potential
-            variance_multiplier = cfg["relegation_var_mul_range"][0] + importance * 0.1
+        # [3] GAME STATE CLASSIFIER (CRITICAL)
+        total_xg_sum = home_xg + away_xg
+        if total_xg_sum >= 2.8:
+            game_state = "OPEN"
+        elif total_xg_sum <= 2.2:
+            game_state = "CLOSED"
+        else:
+            game_state = "BALANCED"
             
-        # 6. Apply xG Caps
-        home_xG = max(self.min_xg, min(home_xG, cfg["home_xG_cap"]))
-        away_xG = max(self.min_xg, min(away_xG, cfg["away_xG_cap"]))
+        # [4] VARIANCE MODEL (BASED ON GAME STATE)
+        if game_state == "OPEN":
+            variance_multiplier = 1.4
+            k_dispersion = 1.1   # Heavy tail
+        elif game_state == "CLOSED":
+            variance_multiplier = 0.8
+            k_dispersion = 2.0   # Tight
+        else:
+            variance_multiplier = 1.0
+            k_dispersion = 1.4
+            
+        # Apply variance multiplier to xG
+        home_xg_sim = home_xg * variance_multiplier
+        away_xg_sim = away_xg * variance_multiplier
         
-        # 7. Goal Distribution (Negative Binomial)
-        h_k = self._get_dispersion_k(self.base_k, importance, abs(strength_diff))
-        a_k = self._get_dispersion_k(self.base_k, importance, abs(strength_diff))
+        # [5] UNDERDOG / UPSET DETECTION (EXPANDED)
+        h_rank = home_feats.get('rank', 10)
+        a_rank = away_feats.get('rank', 10)
+        rank_diff = abs(h_rank - a_rank)
+        strength_diff = abs(home_strength - away_strength)
         
-        # Adjust variance multiplier into NB dispersion (r)
-        # Var = mu + mu^2/r -> mu * vm = mu + mu^2/r -> r = mu / (vm - 1)
-        home_r = h_k / max(0.01, variance_multiplier)
-        away_r = a_k / max(0.01, variance_multiplier)
+        h_form_pts = self._parse_form_to_points(home_feats.get('recent_form', []))
+        a_form_pts = self._parse_form_to_points(away_feats.get('recent_form', []))
         
-        # Compute joint probabilities
-        win_probs, scorelines, markets = self._calculate_joint_outcomes(
-            home_xG, away_xG, home_r, away_r
+        upset_mode = False
+        if rank_diff >= 8: upset_mode = True
+        if strength_diff < 0.15: upset_mode = True # Very close match
+        if a_form_pts > h_form_pts + 2: upset_mode = True # Away team in better form
+        
+        upset_factor = 0.0
+        if upset_mode:
+            # Scale upset factor by rank gap or form gap
+            ups_base = (cfg["upset_factor_range"][0] + cfg["upset_factor_range"][1]) / 2.0
+            upset_factor = ups_base * (1.0 + (min(rank_diff, 15) / 15.0) * 0.5)
+            
+        # [6] SIMULATION (NEGATIVE BINOMIAL)
+        # NB(n, p) where mu = n(1-p)/p, n=k_dispersion
+        dist_results = self._run_monte_carlo(home_xg_sim, away_xg_sim, k_dispersion)
+        
+        # [7-8] PROBABILITY REBALANCING & SCORE CORRECTION
+        final_outcomes = self._apply_rebalancing(
+            dist_results, 
+            upset_mode, 
+            upset_factor, 
+            game_state,
+            strength_diff
         )
         
-        # 8. Upset Adjustment (Final Layer)
-        final_win_probs = self._apply_upset_adjustment(
-            win_probs, abs(strength_diff), cfg["upset_factor_range"]
-        )
-        
-        # 9. Confidence Heuristic
-        confidence = self._compute_confidence(strength_diff, variance_multiplier)
+        # [9] TEXT OUTPUT VALIDATION
+        validation_meta = self._validate_outputs(home_xg, away_xg, final_outcomes, game_state)
         
         return {
-            "win_probabilities": final_win_probs,
-            "scorelines_top5": scorelines,
-            "markets": markets,
+            "win_probabilities": final_outcomes["win_probs"],
+            "scorelines_top5": final_outcomes["top5_scores"],
+            "markets": final_outcomes["markets"],
             "expected_goals": {
-                "home_xG": round(home_xG, 2),
-                "away_xG": round(away_xG, 2),
+                "home_xg": round(home_xg, 2),
+                "away_xg": round(away_xg, 2),
+                "total_xg": round(total_xg_sum, 2)
             },
-            "variance": {
-                "home_k": round(home_r, 2),
-                "away_k": round(away_r, 2),
-                "variance_multiplier": round(variance_multiplier, 2),
+            "analysis": {
+                "game_state": game_state,
+                "upset_mode": upset_mode,
+                "upset_factor": round(upset_factor, 3),
+                "variance_multiplier": variance_multiplier,
+                "k_dispersion": k_dispersion,
+                "confidence": validation_meta["confidence_level"]
             },
             "meta": {
                 "league_id": league_id,
-                "confidence": confidence,
-                "strength_diff_raw": round(strength_diff, 3),
-                "strength_diff_scaled": round(scaled_diff, 3),
+                "home_strength": round(home_strength, 3),
+                "away_strength": round(away_strength, 3),
+                "summary_hints": validation_meta["summary_hints"]
             }
         }
 
-    def _calculate_strength(self, feat: dict) -> float:
-        xGD = feat.get('xGD', feat.get('xG', 1.0) - feat.get('xGA', 1.0))
-        form = feat.get('recent_form', 0.5)
-        ppg = feat.get('points_per_game', 1.3)
-        gd = feat.get('goal_difference', 0)
+    def _calculate_nonlinear_strength(self, feat: dict) -> float:
+        # Step 1: strength = sqrt(points_per_game * 0.6 + goal_diff_per_game * 0.4)
+        ppg = feat.get('points_per_game', feat.get('points', 0) / max(1, feat.get('played', 1)))
         
-        # Scale PPG (0~3) to 0~1 range for balance if needed, but the formula is absolute
-        return (xGD * 0.5 + form * 0.2 + ppg * 0.2 + gd * 0.1)
+        goals_for = feat.get('goals_for', 0)
+        goals_against = feat.get('goals_against', 0)
+        played = max(1, feat.get('played', 1))
+        gd_per_game = (goals_for - goals_against) / played
+        
+        # Shift GD/G to be positive for sqrt (add 2.0 as offset, max/min floor)
+        raw_val = ppg * 0.6 + (gd_per_game + 2.0) * 0.4
+        return math.sqrt(max(0.1, raw_val))
 
-    def _sigmoid(self, x: float, scale: float = 1.0) -> float:
-        y = 1.0 / (1.0 + math.exp(-x * scale))
-        return (y - 0.5) * 2.0  # Range (-1, 1)
+    def _parse_form_to_points(self, form: list) -> int:
+        pts = 0
+        for r in form[-5:]:
+            if r == 'W': pts += 3
+            elif r == 'D': pts += 1
+        return pts
 
-    def _get_dispersion_k(self, base_k: float, importance: float, strength_gap: float) -> float:
-        k = base_k
-        if strength_gap > 0.4:
-            k *= 0.8  # More variance for big gaps
-        k *= (1.0 - 0.2 * importance)
-        return max(k, 0.1)
+    def _run_monte_carlo(self, h_mu, a_mu, k):
+        # mu = n(1-p)/p -> p = n / (n + mu)
+        h_p = k / (k + h_mu)
+        a_p = k / (k + a_mu)
+        
+        # r = k, p = p
+        h_goals = np.random.negative_binomial(k, h_p, self.num_simulations)
+        a_goals = np.random.negative_binomial(k, a_p, self.num_simulations)
+        
+        # Calculate base probabilities
+        win_h = np.mean(h_goals > a_goals)
+        draw = np.mean(h_goals == a_goals)
+        win_a = np.mean(h_goals < a_goals)
+        
+        o25 = np.mean((h_goals + a_goals) > 2.5)
+        o35 = np.mean((h_goals + a_goals) > 3.5)
+        btts = np.mean((h_goals > 0) & (a_goals > 0))
+        
+        # Score distribution
+        scores = {}
+        for h, a in zip(h_goals, a_goals):
+            if h <= self.max_goals_cutoff and a <= self.max_goals_cutoff:
+                key = f"{h}-{a}"
+                scores[key] = scores.get(key, 0) + 1
+        
+        # Normalize scores
+        total_scores = sum(scores.values())
+        score_probs = {k: v / total_scores for k, v in scores.items()}
+        top5 = sorted(score_probs.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        return {
+            "win_probs": {"home": win_h, "draw": draw, "away": win_a},
+            "markets": {"over_2_5": o25, "over_3_5": o35, "btts_yes": btts},
+            "top5_scores": [{"score": k, "prob": v} for k, v in top5],
+            "all_scores": score_probs
+        }
 
-    def _nbinom_pmf(self, k: int, mu: float, r: float) -> float:
-        """
-        Negative Binomial PMF using standard (mu, r) parameterization
-        P(k) = Gamma(k+r) / (k! Gamma(r)) * (r/(r+mu))^r * (mu/(r+mu))^k
-        """
-        if k < 0: return 0.0
-        p = r / (r + mu)
-        try:
-            log_prob = (math.lgamma(k + r) - math.lgamma(k + 1) - math.lgamma(r) + 
-                        r * math.log(p) + k * math.log(1 - p))
-            return math.exp(log_prob)
-        except (ValueError, OverflowError):
-            # Fallback to Poisson if r is huge
-            return (mu ** k * math.exp(-mu)) / math.factorial(k) if k < 20 else 0.0
-
-    def _calculate_joint_outcomes(self, h_mu, a_mu, h_r, a_r):
-        h_probs = [self._nbinom_pmf(i, h_mu, h_r) for i in range(self.max_goals + 1)]
-        a_probs = [self._nbinom_pmf(j, a_mu, a_r) for j in range(self.max_goals + 1)]
-        
-        h_prob_total = sum(h_probs)
-        a_prob_total = sum(a_probs)
-        h_probs = [p / h_prob_total for p in h_probs]
-        a_probs = [p / a_prob_total for p in a_probs]
-        
-        win_h, draw, win_a = 0.0, 0.0, 0.0
-        over_2_5, over_3_5, btts = 0.0, 0.0, 0.0
-        scorelines = []
-        
-        for i in range(len(h_probs)):
-            for j in range(len(a_probs)):
-                p = h_probs[i] * a_probs[j]
-                
-                if i > j: win_h += p
-                elif i == j: draw += p
-                else: win_a += p
-                
-                if i + j > 2.5: over_2_5 += p
-                if i + j > 3.5: over_3_5 += p
-                if i > 0 and j > 0: btts += p
-                
-                scorelines.append({"home_goals": i, "away_goals": j, "prob": p})
-        
-        # Sort top scorelines
-        scorelines.sort(key=lambda x: x["prob"], reverse=True)
-        
-        return (
-            {"home": win_h, "draw": draw, "away": win_a},
-            scorelines[:5],
-            {"over_2_5": over_2_5, "over_3_5": over_3_5, "btts_yes": btts}
-        )
-
-    def _apply_upset_adjustment(self, probs, strength_diff, ups_range):
+    def _apply_rebalancing(self, results, upset_mode, upset_factor, state, strength_diff):
+        probs = results["win_probs"]
         h_win, draw, a_win = probs["home"], probs["draw"], probs["away"]
         
-        fav_win = max(h_win, a_win)
-        is_home_fav = h_win > a_win
+        # [7] PROBABILITY REBALANCING
+        if upset_mode:
+            # Triggered if underdog might win
+            if h_win > a_win: # Home is fav, apply upset to Away
+                a_win += upset_factor
+                h_win -= upset_factor * 0.6
+                draw -= upset_factor * 0.4 # User logic: draw += upset_factor * 0.4 but usually upset implies non-fav win
+                # Fixing user spec: away_win += upset_factor, home_win -= 0.6, draw += 0.4 (wait, sum must be 1)
+                # Let's follow the user's explicit math: h_win - 0.6, a_win + 1.0, draw + 0.4 -> net +0.8? Error in spec.
+                # Assuming: reduce fav, increase underdog and draw.
+                # Re-reading: "away_win += upset_factor, home_win -= upset_factor * 0.6, draw += upset_factor * 0.4" -> -0.6 + 1.0 + 0.4 = +0.8.
+                # I'll normalize after.
+                draw += upset_factor * 0.4
+            else: # Away is fav, apply upset to Home
+                h_win += upset_factor
+                a_win -= upset_factor * 0.6
+                draw += upset_factor * 0.4
         
-        if strength_diff > self.upset_strength_threshold and fav_win > self.upset_threshold_prob:
-            ups_factor = (ups_range[0] + ups_range[1]) / 2.0
+        if strength_diff < 0.2: # close_match
+            # flatten probabilities: reduce top outcome by ~3%
+            outcomes = [h_win, draw, a_win]
+            top_idx = outcomes.index(max(outcomes))
+            reduction = outcomes[top_idx] * 0.03
+            outcomes[top_idx] -= reduction
+            # redistribute to others
+            share = reduction / 2.0
+            for i in range(3):
+                if i != top_idx: outcomes[i] += share
+            h_win, draw, a_win = outcomes
             
-            # Reduce favorite win prob, redistribute to draw/underdog
-            fav_win -= ups_factor
-            if is_home_fav:
-                h_win = fav_win
-                a_win += ups_factor * 0.6
-            else:
-                a_win = fav_win
-                h_win += ups_factor * 0.6
-            draw += ups_factor * 0.4
-            
-            # Re-normalize
-            total = h_win + draw + a_win
-            return {"home": h_win / total, "draw": draw / total, "away": a_win / total}
+        # Re-normalize
+        total = h_win + draw + a_win
+        h_win, draw, a_win = h_win/total, draw/total, a_win/total
         
-        return probs
+        # [8] SCORE DISTRIBUTION CORRECTION (Simplified scaling)
+        # In Monte Carlo, it's better to scale the score_probs directly
+        score_probs = results["all_scores"]
+        if state == "OPEN":
+            # boost high-score outcomes (total goals >= 4)
+            for k in score_probs:
+                h, a = map(int, k.split('-'))
+                if h + a >= 4: score_probs[k] *= 1.25
+        elif state == "CLOSED":
+            # boost low-score outcomes (0-0, 1-0, 0-1)
+            for k in ["0-0", "1-0", "0-1"]:
+                if k in score_probs: score_probs[k] *= 1.3
+        
+        # Re-normalize score_probs
+        s_total = sum(score_probs.values())
+        score_probs = {k: v / s_total for k, v in score_probs.items()}
+        top5 = sorted(score_probs.items(), key=lambda x: x[1], reverse=True)[:5]
 
-    def _compute_confidence(self, strength_diff, vm) -> str:
-        if abs(strength_diff) < 0.2 or vm > 1.2:
-            return "low"
-        if abs(strength_diff) > 0.6 and vm <= 1.05:
-            return "high"
-        return "medium"
+        return {
+            "win_probs": {"home": h_win, "draw": draw, "away": a_win},
+            "top5_scores": [{"score": k, "prob": v} for k, v in top5],
+            "markets": results["markets"]
+        }
 
-def predict_match_v3(league_id, home_feat, away_feat, context):
-    engine = SoccerEngineV3()
+    def _validate_outputs(self, h_xg, a_xg, outcomes, state) -> dict:
+        hints = []
+        total_xg = h_xg + a_xg
+        o25_prob = outcomes["markets"]["over_2_5"]
+        
+        # [9] TEXT OUTPUT VALIDATION
+        if total_xg > 2.5:
+            hints.append("High expected goal volume (Total xG > 2.5). Avoid 'low scoring' label.")
+        
+        if o25_prob > 0.55:
+            hints.append("High scoring tendency detected (Over 2.5 > 55%).")
+        
+        probs = outcomes["win_probs"]
+        if abs(probs["home"] - probs["away"]) < 0.15:
+            hints.append("Tight match detected (Close win probabilities).")
+            
+        # Confidence Level
+        conf = "medium"
+        if total_xg < 1.8 and abs(probs["home"] - probs["away"]) < 0.1:
+            conf = "low" # Unpredictable low-event drawish game
+        elif total_xg > 2.8 and (probs["home"] > 0.6 or probs["away"] > 0.6):
+            conf = "high" # Clear favorite in open game
+            
+        return {
+            "summary_hints": hints,
+            "confidence_level": conf
+        }
+
+def predict_match_v4(league_id, home_feat, away_feat, context):
+    engine = SoccerEngineV4()
     return engine.predict_match(league_id, home_feat, away_feat, context)

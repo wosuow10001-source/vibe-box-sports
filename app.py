@@ -1236,6 +1236,24 @@ with tab1:
                         st.metric("Double Chance (1X)", f"{dc.get('1X', 0):.1%}", help="홈팀 승리 또는 무승부")
                         st.metric("Double Chance (X2)", f"{dc.get('X2', 0):.1%}", help="원정팀 승리 또는 무승부")
                     
+                    # ========== V4 Advanced Analysis (NEW) ==========
+                    st.markdown("#### 🔍 심층 경기 분석 (V4 Engine)")
+                    a_col1, a_col2, a_col3 = st.columns(3)
+                    
+                    with a_col1:
+                        state = prediction.get('game_state', 'BALANCED')
+                        state_color = "🔴" if state == "OPEN" else "🔵" if state == "CLOSED" else "🟢"
+                        st.markdown(f"**경기 템포**\n{state_color} {state}")
+                        
+                    with a_col2:
+                        upset = prediction.get('upset_mode', False)
+                        upset_label = "⚠️ HIGH" if upset else "✅ LOW"
+                        st.markdown(f"**이변 가능성**\n{upset_label}")
+                        
+                    with a_col3:
+                        conf = prediction.get('confidence', 'medium').upper()
+                        st.markdown(f"**예측 신뢰도**\n{conf}")
+                        
                     # 베팅 인사이트
                     if 'betting_insight' in prediction:
                         st.info(f"💡 **전문가 분석 제언:** {prediction['betting_insight']}")
@@ -1253,9 +1271,15 @@ with tab1:
             
             with analysis_col2:
                 st.write(t('prediction_confidence'))
-                confidence = prediction.get('confidence_score', 0.5)
-                st.progress(confidence)
-                st.write(f"{t('confidence_label')}{prediction.get('confidence', 'medium')}")
+                conf_label = prediction.get('confidence', 'medium')
+                conf_score = 0.8 if conf_label == 'high' else 0.6 if conf_label == 'medium' else 0.4
+                st.progress(conf_score)
+                st.write(f"{t('confidence_label')}{conf_label.upper()}")
+                
+                # V4 Summary Hints
+                if 'summary_hints' in prediction:
+                    for hint in prediction['summary_hints']:
+                        st.caption(f"ℹ️ {hint}")
             
             # 예상 스코어 (기존)
             if not pass_flag and prediction.get('expected_score_home') is not None:

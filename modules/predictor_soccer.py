@@ -13,7 +13,7 @@ from math import factorial, exp
 import pickle
 from pathlib import Path
 from modules.advanced_soccer_metrics import get_soccer_metrics
-from modules.predictor_soccer_v3 import SoccerEngineV3
+from modules.predictor_soccer_v3 import SoccerEngineV4
 
 
 class SoccerPredictor:
@@ -115,14 +115,14 @@ class SoccerPredictor:
             "is_home": True
         }
         
-        # ========== 3단계: V3 엔진 실행 (Negative Binomial) ==========
-        engine = SoccerEngineV3()
-        v3_res = engine.predict_match(v3_league_id, home_features, away_features, context)
+        # ========== 3단계: V4 엔진 실행 (Negative Binomial Monte Carlo) ==========
+        engine = SoccerEngineV4()
+        v4_res = engine.predict_match(v3_league_id, home_features, away_features, context)
         
-        # ========== 4단계: 결과 정규화 및 UI 호환성 확보 ==========
-        final_home_prob = v3_res['win_probabilities']['home']
-        final_draw_prob = v3_res['win_probabilities']['draw']
-        final_away_prob = v3_res['win_probabilities']['away']
+        # ========== 4단계: 결과 정합성 및 UI 호환성 확보 ==========
+        final_home_prob = v4_res['win_probabilities']['home']
+        final_draw_prob = v4_res['win_probabilities']['draw']
+        final_away_prob = v4_res['win_probabilities']['away']
         
         # 주요 영향 요인 식별
         key_factors = self._identify_key_factors(
@@ -134,35 +134,36 @@ class SoccerPredictor:
         betting_insight = self._generate_betting_insight({
             'home_win_prob': final_home_prob,
             'away_win_prob': final_away_prob,
-            'over_2_5_prob': v3_res['markets']['over_2_5'],
-            'btts_prob': v3_res['markets']['btts_yes']
+            'over_2_5_prob': v4_res['markets']['over_2_5'],
+            'btts_prob': v4_res['markets']['btts_yes']
         })
         
-        # 스코어 형식 변환
-        top_5_scores = [((s['home_goals'], s['away_goals']), s['prob']) for s in v3_res['scorelines_top5']]
+        # 스코어 형식 변환 (v4: score="1-0")
+        top_5_scores = [((int(s['score'].split('-')[0]), int(s['score'].split('-')[1])), s['prob']) for s in v4_res['scorelines_top5']]
         
         return {
             'home_win_prob': final_home_prob,
             'draw_prob': final_draw_prob,
             'away_win_prob': final_away_prob,
-            'expected_score_home': v3_res['scorelines_top5'][0]['home_goals'],
-            'expected_score_away': v3_res['scorelines_top5'][0]['away_goals'],
+            'expected_score_home': int(v4_res['scorelines_top5'][0]['score'].split('-')[0]),
+            'expected_score_away': int(v4_res['scorelines_top5'][0]['score'].split('-')[1]),
             'top_3_scores': top_5_scores[:3],
             'top_5_scores': top_5_scores,
-            'over_2_5_prob': v3_res['markets']['over_2_5'],
-            'over_3_5_prob': v3_res['markets']['over_3_5'],
-            'btts_prob': v3_res['markets']['btts_yes'],
+            'over_2_5_prob': v4_res['markets']['over_2_5'],
+            'over_3_5_prob': v4_res['markets']['over_3_5'],
+            'btts_prob': v4_res['markets']['btts_yes'],
             'double_chance': {
                 '1X': final_home_prob + final_draw_prob,
                 'X2': final_away_prob + final_draw_prob,
                 '12': final_home_prob + final_away_prob
             },
-            'lambda_home': v3_res['expected_goals']['home_xG'],
-            'lambda_away': v3_res['expected_goals']['away_xG'],
-            'lambda_c': v3_res['meta']['strength_diff_scaled'], # V3에서는 스케일링된 전력차를 참고용으로 표시
+            'lambda_home': v4_res['expected_goals']['home_xg'],
+            'lambda_away': v4_res['expected_goals']['away_xg'],
+            'game_state': v4_res['analysis']['game_state'],
+            'upset_mode': v4_res['analysis']['upset_mode'],
+            'confidence': v4_res['analysis']['confidence'],
+            'summary_hints': v4_res['meta']['summary_hints'],
             'key_factors': key_factors,
-            'confidence_score': 0.8 if v3_res['meta']['confidence'] == 'high' else 0.6 if v3_res['meta']['confidence'] == 'medium' else 0.4,
-            'confidence': v3_res['meta']['confidence'],
             'betting_insight': betting_insight,
             'detailed_scores': {
                 'form': form_score,
