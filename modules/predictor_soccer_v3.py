@@ -172,7 +172,9 @@ class SoccerEngineV4:
         raw_val = ppg * 0.6 + (gd_per_game + 2.0) * 0.4
         return math.sqrt(max(0.1, raw_val))
 
-    def _parse_form_to_points(self, form: list) -> int:
+    def _parse_form_to_points(self, form: Any) -> int:
+        if not isinstance(form, (list, str)):
+            return 0
         pts = 0
         for r in form[-5:]:
             if r == 'W': pts += 3

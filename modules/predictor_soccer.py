@@ -90,19 +90,20 @@ class SoccerPredictor:
         v3_league_id = league_id_map.get(league, "DEFAULT")
         
         # 피처 추출
-        def extract_v3_features(team_data, form_val):
+        def extract_v3_features(team_data):
             return {
                 "rank": team_data.get('rank', 10),
                 "points": team_data.get('points', 0),
-                "recent_form": form_val,
-                "xG": team_data.get('team_xg', team_data.get('avg_goals', 1.5)),
-                "xGA": team_data.get('team_xga', team_data.get('avg_conceded', 1.5)),
-                "goal_difference": team_data.get('goal_bias', team_data.get('goal_difference', 0)),
-                "points_per_game": team_data.get('ppg', 1.3)
+                "played": team_data.get('total_matches', team_data.get('played', 1)),
+                "recent_form": team_data.get('recent_form', []),
+                "avg_goals": team_data.get('avg_goals', 1.3),
+                "avg_conceded": team_data.get('avg_conceded', 1.3),
+                "goal_difference": team_data.get('goal_difference', 0),
+                "points_per_game": team_data.get('points_per_game', 1.3)
             }
         
-        home_features = extract_v3_features(home_data, form_score['home'])
-        away_features = extract_v3_features(away_data, form_score['away'])
+        home_features = extract_v3_features(home_data)
+        away_features = extract_v3_features(away_data)
         
         # 경기 컨텍스트 매핑
         importance_map = {"일반": 0.5, "중요": 0.75, "매우중요": 1.0}
