@@ -116,8 +116,14 @@
                 for (const [path, data] of Object.entries(filesRaw)) {
                     if (typeof data === 'object' && data.content) {
                         if (data.encoding === 'base64') {
-                            // Binary files (DB, images) handling
-                            stliteFiles[path] = { "data": data.content };
+                            // Binary files (DB, images) decoding properly for stlite
+                            const binaryString = window.atob(data.content);
+                            const len = binaryString.length;
+                            const bytes = new Uint8Array(len);
+                            for (let i = 0; i < len; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            stliteFiles[path] = { "data": bytes };
                         } else {
                             stliteFiles[path] = data.content;
                         }
