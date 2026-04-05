@@ -14,6 +14,7 @@ import pickle
 from pathlib import Path
 from modules.advanced_soccer_metrics import get_soccer_metrics
 from modules.predictor_soccer_v3 import SoccerEngineV4
+from modules.ensemble_predictor import EnsemblePredictorV6
 
 
 class SoccerPredictor:
@@ -116,35 +117,18 @@ class SoccerPredictor:
             "is_home": True
         }
         
-        # ========== 3단계: 기대 득점 λ 계산 (폼/부상/날씨/휴식/코칭 반영) ==========
-        # This was previously dead code - V4 ignored these values. Now passed as xg_override.
-        lambda_home = self._calculate_expected_goals(
-            league, home_data, away_data, True,
-            form_score['home'], home_advantage, player_condition['home'],
-            tactical_score['home'], weather_impact['home'], rest_impact['home'],
-            motivation_score, injury_impact['home'], coaching_impact['home'],
-            rest_days_home, rest_days_away, injury_data
-        )
-        lambda_away = self._calculate_expected_goals(
-            league, away_data, home_data, False,
-            form_score['away'], 0, player_condition['away'],
-            tactical_score['away'], weather_impact['away'], rest_impact['away'],
-            motivation_score, injury_impact['away'], coaching_impact['away'],
-            rest_days_home, rest_days_away, injury_data
-        )
-        
-        # ========== 4단계: V4 엔진 실행 (with enriched xG override) ==========
-        engine = SoccerEngineV4()
-        xg_override = {
-            'home_xg': lambda_home,
-            'away_xg': lambda_away
-        }
-        v4_res = engine.predict_match(v3_league_id, home_features, away_features, context, xg_override=xg_override)
+        # ========== 3단계: V6 Ultra 앙상블 엔진 실행 ==========
+        v6_engine = EnsemblePredictorV6(league=league)
+        v6_res = v6_engine.predict(home_data, away_data, context)
         
         # ========== 4단계: 결과 정합성 및 UI 호환성 확보 ==========
-        final_home_prob = v4_res['win_probabilities']['home']
-        final_draw_prob = v4_res['win_probabilities']['draw']
-        final_away_prob = v4_res['win_probabilities']['away']
+        final_home_prob = v6_res['win_probabilities']['home']
+        final_draw_prob = v6_res['win_probabilities']['draw']
+        final_away_prob = v6_res['win_probabilities']['away']
+        
+        v4_res = v6_res['nb_simulation']
+        lambda_home = v6_res['expected_goals']['home']
+        lambda_away = v6_res['expected_goals']['away']
         
         # 주요 영향 요인 식별
         key_factors = self._identify_key_factors(

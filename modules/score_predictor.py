@@ -38,7 +38,7 @@ class ScorePredictor:
             return {
                 'home_score': int(round(res['expected_score_home'])),
                 'away_score': int(round(res['expected_score_away'])),
-                'total_goals': int(round(res['expected_score_home'] + res['expected_score_away'])),
+                'total_goals': round(res.get('lambda_home', 0) + res.get('lambda_away', 0), 1),
                 'home_win_probability': int(res['home_win_prob'] * 100),
                 'away_win_probability': int(res['away_win_prob'] * 100),
                 'draw_probability': int(res['draw_prob'] * 100),

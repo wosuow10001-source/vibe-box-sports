@@ -372,7 +372,7 @@ class DataCollector:
                     'avg_allowed': real_stats.get('avg_allowed', avg_sets_lost),
                     'win_pct': real_stats.get('win_pct', real_stats['wins'] / total_games if total_games > 0 else 0),
                     # 최근 10경기 및 스트레이크 정보 반영
-                    'last_10': real_stats.get('last_10', f"{sum(1 for r in real_stats.get('form', [])[:10] if r == 'W')}-{sum(1 for r in real_stats.get('form', [])[:10] if r == 'L')}"),
+                    'last_10': real_stats.get('last_10', '0-0'),
                     'streak': real_stats.get('streak', ''),
                     'last_10_wins': 0,
                     'last_10_losses': 0,

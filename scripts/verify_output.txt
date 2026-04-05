@@ -1,0 +1,38 @@
+
+============================================================
+  NEWCASTLE vs EVERTON ??V4 FIX VERIFICATION
+  Actual Result: Newcastle 2 - 3 Everton
+============================================================
+
+  Predicted Score:  2 - 2
+  xG (貫):          Home 1.97  Away 2.37
+  Total xG:         4.34
+  Game State:       OPEN
+
+  Win Probabilities:
+    Home:  43.0%
+    Draw:  20.9%
+    Away:  36.2%
+
+  Markets:
+    Over 2.5: 64.7%
+    Over 3.5: 53.6%
+    BTTS:     46.4%
+
+  Top 5 Scorelines:
+    1. 0-0  (11.0%)
+    2. 0-1  (6.8%)
+    3. 1-0  (6.5%)
+    4. 0-2  (4.7%)
+    5. 2-0  (4.4%)
+
+  === VERIFICATION CHECKS ===
+    ??PASS: Predicted score is NOT 0-0
+    ??PASS: Total xG > 1.5 (4.34)
+    ??PASS: Over 2.5 > 30% (64.7%)
+    ??PASS: BTTS > 30% (46.4%)
+    ??PASS: Game state != CLOSED (OPEN)
+    ??FAIL: Top scoreline != 0-0 (0-0)
+
+  ??SOME CHECKS FAILED
+============================================================
