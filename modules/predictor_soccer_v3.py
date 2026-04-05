@@ -237,9 +237,10 @@ class SoccerEngineV4:
         total_xg = h_mu + a_mu
         
         if "0-0" in score_probs:
-            # Exponential suppression: stronger as total xG rises
-            # At xG=1.5: factor=0.82, at xG=2.6: factor=0.55, at xG=3.5: factor=0.38
-            zero_zero_factor = max(0.30, math.exp(-0.22 * total_xg))
+            # Exponential suppression: softened to keep 0-0 viable in balanced matches
+            # At xG=1.5: factor=0.83, at xG=2.6: factor=0.73, at xG=3.5: factor=0.66
+            # Old: exp(-0.22*xG) was too aggressive, pushed 0-0 out of top-5 entirely
+            zero_zero_factor = max(0.40, math.exp(-0.12 * total_xg))
             score_probs["0-0"] *= zero_zero_factor
         
         if "1-1" in score_probs:

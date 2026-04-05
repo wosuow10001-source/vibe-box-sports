@@ -160,6 +160,13 @@ class SoccerPredictor:
             'btts_prob': v4_res['markets']['btts_yes']
         })
         
+        # 예측 스코어: Top-1 스코어라인(mode) 사용 (mean round 대신)
+        # mean round는 1.48→2, 1.61→2 → '2-2' 처럼 비현실적 스코어를 만듦
+        # Top-1 mode는 시뮬레이션에서 가장 빈도가 높은 실제 스코어라인
+        top1_score = v4_res['scorelines_top5'][0]['score'] if v4_res['scorelines_top5'] else '1-0'
+        top1_home = int(top1_score.split('-')[0])
+        top1_away = int(top1_score.split('-')[1])
+        
         # 스코어 형식 변환 (v4: score="1-0")
         top_5_scores = [((int(s['score'].split('-')[0]), int(s['score'].split('-')[1])), s['prob']) for s in v4_res['scorelines_top5']]
         
@@ -167,8 +174,8 @@ class SoccerPredictor:
             'home_win_prob': final_home_prob,
             'draw_prob': final_draw_prob,
             'away_win_prob': final_away_prob,
-            'expected_score_home': round(v4_res['expected_goals'].get('mean_home', lambda_home)),
-            'expected_score_away': round(v4_res['expected_goals'].get('mean_away', lambda_away)),
+            'expected_score_home': top1_home,
+            'expected_score_away': top1_away,
             'top_3_scores': top_5_scores[:3],
             'top_5_scores': top_5_scores,
             'over_2_5_prob': v4_res['markets']['over_2_5'],
