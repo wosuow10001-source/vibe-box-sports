@@ -593,7 +593,7 @@ with col_coffee:
         with col_q1:
             st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🇰🇷 KakaoPay (KRW)</p>", unsafe_allow_html=True)
             if os.path.exists(kakao_qr_path):
-                st.image(kakao_qr_path, use_container_width=True)
+                st.image(kakao_qr_path, use_column_width=True)
             
             st.markdown("""
             <div style='text-align: center; margin-top: 10px;'>
@@ -610,7 +610,7 @@ with col_coffee:
         with col_q2:
             st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🌎 PayPal (Global)</p>", unsafe_allow_html=True)
             if os.path.exists(paypal_qr_path):
-                st.image(paypal_qr_path, use_container_width=True)
+                st.image(paypal_qr_path, use_column_width=True)
             else:
                 st.warning("PayPal QR code not found.")
                 
