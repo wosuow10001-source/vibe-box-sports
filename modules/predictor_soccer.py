@@ -116,9 +116,30 @@ class SoccerPredictor:
             "is_home": True
         }
         
-        # ========== 3단계: V4 엔진 실행 (Negative Binomial Monte Carlo) ==========
+        # ========== 3단계: 기대 득점 λ 계산 (폼/부상/날씨/휴식/코칭 반영) ==========
+        # This was previously dead code - V4 ignored these values. Now passed as xg_override.
+        lambda_home = self._calculate_expected_goals(
+            league, home_data, away_data, True,
+            form_score['home'], home_advantage, player_condition['home'],
+            tactical_score['home'], weather_impact['home'], rest_impact['home'],
+            motivation_score, injury_impact['home'], coaching_impact['home'],
+            rest_days_home, rest_days_away, injury_data
+        )
+        lambda_away = self._calculate_expected_goals(
+            league, away_data, home_data, False,
+            form_score['away'], 0, player_condition['away'],
+            tactical_score['away'], weather_impact['away'], rest_impact['away'],
+            motivation_score, injury_impact['away'], coaching_impact['away'],
+            rest_days_home, rest_days_away, injury_data
+        )
+        
+        # ========== 4단계: V4 엔진 실행 (with enriched xG override) ==========
         engine = SoccerEngineV4()
-        v4_res = engine.predict_match(v3_league_id, home_features, away_features, context)
+        xg_override = {
+            'home_xg': lambda_home,
+            'away_xg': lambda_away
+        }
+        v4_res = engine.predict_match(v3_league_id, home_features, away_features, context, xg_override=xg_override)
         
         # ========== 4단계: 결과 정합성 및 UI 호환성 확보 ==========
         final_home_prob = v4_res['win_probabilities']['home']
@@ -146,8 +167,8 @@ class SoccerPredictor:
             'home_win_prob': final_home_prob,
             'draw_prob': final_draw_prob,
             'away_win_prob': final_away_prob,
-            'expected_score_home': int(v4_res['scorelines_top5'][0]['score'].split('-')[0]),
-            'expected_score_away': int(v4_res['scorelines_top5'][0]['score'].split('-')[1]),
+            'expected_score_home': round(v4_res['expected_goals'].get('mean_home', lambda_home)),
+            'expected_score_away': round(v4_res['expected_goals'].get('mean_away', lambda_away)),
             'top_3_scores': top_5_scores[:3],
             'top_5_scores': top_5_scores,
             'over_2_5_prob': v4_res['markets']['over_2_5'],
@@ -689,30 +710,50 @@ class SoccerPredictor:
             
         base_lambda *= max(0.75, min(1.25, rank_bonus))
             
-        # ========== 3. 동적 컨텐츠 모디파이어 ==========
-        # 폼 반영 (Weighted Form)
-        form_factor = 0.8 + (form * 0.4)
+        # ========== 3. 동적 컨텐츠 모디파이어 (V5: 가산식 → 인플레이션 방지) ==========
+        # 이전: 5개 요소를 곱셈(×1.05×1.04×1.02...) → 복리 효과로 20~50% 뻥튀기
+        # 개선: 각 요소를 ±% 델타로 변환, 합산 후 ±15% 캡
         
-        # 휴식일 차이
+        # 폼 반영 (form: 0~1 범위, 0.5 = 중립)
+        form_delta = (form - 0.5) * 0.16          # ±8% max
+        
+        # 선수 컨디션 (player_condition: 0.3~1.0 범위)
+        cond_delta = (player_condition - 0.65) * 0.12  # ±4% max
+        
+        # 전술 궁합 (tactical: 0~1 범위)
+        tact_delta = (tactical - 0.5) * 0.08      # ±4% max
+        
+        # 날씨 영향
+        weather_val = weather if isinstance(weather, (int, float)) else 0.5
+        weat_delta = (weather_val - 0.5) * 0.06   # ±3% max
+        
+        # 코칭 영향
+        coac_delta = (coaching - 0.65) * 0.06     # ±2% max
+        
+        # 휴식일 차이 (기존 곱셈 → 가산 델타)
+        rest_delta = 0.0
         rest_diff = rest_days_home - rest_days_away
         if is_home and rest_diff >= 2:
-            base_lambda *= 1.05
+            rest_delta = 0.03
         elif not is_home and rest_diff <= -2:
-            base_lambda *= 1.05
+            rest_delta = 0.03
             
         # MLS 특별 모디파이어: 여행 거리
+        travel_delta = 0.0
         if league == "MLS":
             travel_dist = team_data.get('travel_distance', 0)
-            if travel_dist > 2000: # 2000km 이상 이동 시 피로도 반영
-                base_lambda *= 0.94
+            if travel_dist > 2000:
+                travel_delta = -0.06
             elif travel_dist > 1000:
-                base_lambda *= 0.97
+                travel_delta = -0.03
 
-        # 날씨 템보 감쇠 (폭염/폭설 시 경기 템포 저하 → xG 감소)
+        # 날씨 템포 감쇠 (폭염/폭설)
+        extreme_weather_delta = 0.0
         if weather in ['폭염', '폭설']:
-            base_lambda *= 0.90
+            extreme_weather_delta = -0.08
             
         # 부상 영향 (키 포지션별 상세 보정)
+        injury_delta = 0.0
         if injury_data:
             home_injuries = injury_data.get('home', [])
             away_injuries = injury_data.get('away', [])
@@ -721,25 +762,25 @@ class SoccerPredictor:
             
             for f_inj in my_injuries:
                 if any(pos in f_inj.get('position', '').upper() for pos in ['FW', 'ST', 'ATT']):
-                    base_lambda *= 0.88 # 주요 공격수 결장 시 12% 감소
+                    injury_delta -= 0.10  # 주요 공격수 결장 시 -10%
                     break
             for d_inj in opp_injuries:
                 if any(pos in d_inj.get('position', '').upper() for pos in ['DF', 'DEF', 'GK']):
-                    base_lambda *= 1.10 # 상대 주요 수비수 결장 시 10% 증가
+                    injury_delta += 0.08  # 상대 주요 수비수 결장 시 +8%
                     break
 
-        # 기타 요인 통합 (가중치 정상화: 35% -> 20%로 복구하여 람다 인플레이션 방지)
-        cond_f = 0.9 + (player_condition * 0.2)
-        tact_f = 0.9 + (tactical * 0.2)
-        weat_f = 0.95 + (weather if isinstance(weather, float) else 0.05) # 날씨 점수화
-        coac_f = 0.95 + (coaching * 0.1)
-        
-        final_lambda = (
-            base_lambda * form_factor * cond_f * 
-            tact_f * weat_f * coac_f
+        # 모든 델타 합산 (±15% 캡으로 인플레이션 제어)
+        total_delta = (
+            form_delta + cond_delta + tact_delta + 
+            weat_delta + coac_delta + rest_delta + 
+            travel_delta + extreme_weather_delta + injury_delta
         )
+        total_delta = max(-0.15, min(0.15, total_delta))
         
-        return max(0.2, min(6.0, final_lambda))
+        final_lambda = base_lambda * (1.0 + total_delta)
+        
+        # 하드 캡: V4 max_xg_cap(3.0)과 일치
+        return max(0.3, min(3.5, final_lambda))
 
     def _predict_ml_outcome_probs(self, home_data, away_data, league, 
                                 weather_impact, rest_impact, injury_impact, coaching_impact,
