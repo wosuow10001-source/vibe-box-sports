@@ -545,8 +545,7 @@ with col_coffee:
     st.markdown("""
     <style>
     /* 커피 후원 버튼 - 황금색 배경, 검정 텍스트 */
-    div[data-testid="column"]:nth-child(2) .stButton > button,
-    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button {
+    div[data-testid="column"]:nth-child(2) button {
         background-color: #FFD700 !important;
         color: #000000 !important;
         font-weight: 600 !important;
@@ -557,16 +556,15 @@ with col_coffee:
         box-shadow: 0 2px 6px rgba(255, 215, 0, 0.3) !important;
         margin-top: 10px !important;
     }
-    div[data-testid="column"]:nth-child(2) .stButton > button:hover,
-    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button:hover {
+    div[data-testid="column"]:nth-child(2) button:hover {
         background-color: #FFC700 !important;
         color: #000000 !important;
         border: 2px solid #FFC700 !important;
         box-shadow: 0 3px 8px rgba(255, 215, 0, 0.4) !important;
     }
     /* 커피 버튼 텍스트 강제 검정색 */
-    div[data-testid="column"]:nth-child(2) .stButton > button p,
-    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button p {
+    div[data-testid="column"]:nth-child(2) button p,
+    div[data-testid="column"]:nth-child(2) button span {
         color: #000000 !important;
     }
     </style>
