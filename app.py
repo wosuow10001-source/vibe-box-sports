@@ -541,15 +541,12 @@ with col_header:
     """, unsafe_allow_html=True)
 
 with col_coffee:
-    # 후원 버튼 클릭 상태 관리
-    if 'show_qr' not in st.session_state:
-        st.session_state.show_qr = False
-    
-    # 커피 후원 버튼 스타일
+    # 커피 후원 버튼 스타일 (st.popover 버튼에도 적용되도록 선택자 추가)
     st.markdown("""
     <style>
     /* 커피 후원 버튼 - 황금색 배경, 검정 텍스트 */
-    div[data-testid="column"]:nth-child(2) .stButton > button {
+    div[data-testid="column"]:nth-child(2) .stButton > button,
+    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button {
         background-color: #FFD700 !important;
         color: #000000 !important;
         font-weight: 600 !important;
@@ -560,105 +557,103 @@ with col_coffee:
         box-shadow: 0 2px 6px rgba(255, 215, 0, 0.3) !important;
         margin-top: 10px !important;
     }
-    div[data-testid="column"]:nth-child(2) .stButton > button:hover {
+    div[data-testid="column"]:nth-child(2) .stButton > button:hover,
+    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button:hover {
         background-color: #FFC700 !important;
         color: #000000 !important;
         border: 2px solid #FFC700 !important;
         box-shadow: 0 3px 8px rgba(255, 215, 0, 0.4) !important;
     }
     /* 커피 버튼 텍스트 강제 검정색 */
-    div[data-testid="column"]:nth-child(2) .stButton > button p {
+    div[data-testid="column"]:nth-child(2) .stButton > button p,
+    div[data-testid="column"]:nth-child(2) [data-testid="stPopover"] > button p {
         color: #000000 !important;
     }
     </style>
     """, unsafe_allow_html=True)
     
-    # 커피 버튼
-    if st.button("☕ 커피 한 잔 후원하기", key="coffee_support"):
-        st.session_state.show_qr = not st.session_state.show_qr
-    
+    # 팝오버를 사용해 클릭 시 즉시 렌더링 (리로드 방지)
+    with st.popover("☕ 커피 한 잔 후원하기", use_container_width=True):
+        st.markdown("""
+        <div style='background-color: #2a2a2a; padding: 20px; border-radius: 12px; 
+                    border: 1px solid #CCFF00; margin: 10px 0; text-align: center;'>
+            <h4 style='color: #CCFF00; margin: 0 0 10px 0;'>☕ 커피 한 잔 후원하기 / Buy me a Coffee</h4>
+            <p style='color: #ffffff; font-size: 0.875rem; margin-bottom: 15px;'>
+                개발자를 응원해주세요! / Support the Developer!
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 이미지 경로
+        curr_dir = Path(__file__).parent
+        kakao_qr_path = str(curr_dir / "assets" / "coffee_qr.jpg")
+        paypal_qr_path = str(curr_dir / "assets" / "paypal_qr.png")
+        
+        col_q1, col_q2 = st.columns(2)
+        
+        # KakaoPay 섹션
+        with col_q1:
+            st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🇰🇷 KakaoPay (KRW)</p>", unsafe_allow_html=True)
+            if os.path.exists(kakao_qr_path):
+                _, img_col, _ = st.columns([1, 3, 1])
+                with img_col:
+                    st.image(kakao_qr_path, width=180)
+            
+            st.markdown("""
+            <div style='text-align: center; margin-top: 10px;'>
+                <a href='https://qr.kakaopay.com/FHucxWATA' target='_blank' 
+                   style='display: inline-block; background-color: #FEE500; color: #1a1a1a;
+                          padding: 8px 16px; border-radius: 6px; text-decoration: none;
+                          font-weight: 700; font-size: 0.85rem; width: 80%;'>
+                    📱 KakaoPay
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        # PayPal 섹션
+        with col_q2:
+            st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🌎 PayPal (Global)</p>", unsafe_allow_html=True)
+            if os.path.exists(paypal_qr_path):
+                _, img_col, _ = st.columns([1, 3, 1])
+                with img_col:
+                    st.image(paypal_qr_path, width=180)
+            else:
+                st.warning("PayPal QR code not found.")
+                
+            st.markdown("""
+            <div style='text-align: center; margin-top: 10px;'>
+                <a href='https://www.paypal.com' target='_blank' 
+                   style='display: inline-block; background-color: #0070ba; color: #ffffff;
+                          padding: 8px 16px; border-radius: 6px; text-decoration: none;
+                          font-weight: 700; font-size: 0.85rem; width: 80%;'>
+                    💳 PayPal Support
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # 코인 후원 섹션 추가
+        st.markdown("---")
+        st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600;'>💎 Crypto Donation</p>", unsafe_allow_html=True)
+        
+        crypto_col1, crypto_col2 = st.columns(2)
+        with crypto_col1:
+            st.caption("ETH / ERC20")
+            st.code("0xB7BBF47aa5c8aC9551C7DEC9dD175DbBC5F98E54", language=None)
+            st.caption("BTC")
+            st.code("bc1q86v59zwytg72mdtsv5l3nkhlda7wztmkv4gv9e", language=None)
+            
+        with crypto_col2:
+            st.caption("SOL / Solana")
+            st.code("4tSoak4dM1KYciQv5FQJK1fzSb8PpH1roQLv4TbQPuuP", language=None)
+            st.caption("TRX / TRC20")
+            st.code("TSByfvevhYhX6Wo6VEvrJhHwd1azaCYaox", language=None)
+
     # 후원 안내 메시지
     st.markdown("""
     <p style='color: #cccccc; font-size: 0.75rem; text-align: center; margin-top: 5px; line-height: 1.4;'>
         후원금은 서비스 개발 및<br>운영 비용으로 사용됩니다 🙏
     </p>
     """, unsafe_allow_html=True)
-
-# QR 코드 모달 표시
-if st.session_state.show_qr:
-    st.markdown("""
-    <div style='background-color: #2a2a2a; padding: 20px; border-radius: 12px; 
-                border: 1px solid #CCFF00; margin: 10px 0; text-align: center;'>
-        <h4 style='color: #CCFF00; margin: 0 0 10px 0;'>☕ 커피 한 잔 후원하기 / Buy me a Coffee</h4>
-        <p style='color: #ffffff; font-size: 0.875rem; margin-bottom: 15px;'>
-            개발자를 응원해주세요! / Support the Developer!
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # 이미지 경로
-    curr_dir = Path(__file__).parent
-    kakao_qr_path = str(curr_dir / "assets" / "coffee_qr.jpg")
-    paypal_qr_path = str(curr_dir / "assets" / "paypal_qr.png")
-    
-    col_q1, col_q2 = st.columns(2)
-    
-    # KakaoPay 섹션
-    with col_q1:
-        st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🇰🇷 KakaoPay (KRW)</p>", unsafe_allow_html=True)
-        if os.path.exists(kakao_qr_path):
-            _, img_col, _ = st.columns([1, 3, 1])
-            with img_col:
-                st.image(kakao_qr_path, width=180)
-        
-        st.markdown("""
-        <div style='text-align: center; margin-top: 10px;'>
-            <a href='https://qr.kakaopay.com/FHucxWATA' target='_blank' 
-               style='display: inline-block; background-color: #FEE500; color: #1a1a1a;
-                      padding: 8px 16px; border-radius: 6px; text-decoration: none;
-                      font-weight: 700; font-size: 0.85rem; width: 80%;'>
-                📱 KakaoPay
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    # PayPal 섹션
-    with col_q2:
-        st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600; margin-bottom: 10px;'>🌎 PayPal (Global)</p>", unsafe_allow_html=True)
-        if os.path.exists(paypal_qr_path):
-            _, img_col, _ = st.columns([1, 3, 1])
-            with img_col:
-                st.image(paypal_qr_path, width=180)
-        else:
-            st.warning("PayPal QR code not found.")
-            
-        st.markdown("""
-        <div style='text-align: center; margin-top: 10px;'>
-            <a href='https://www.paypal.com' target='_blank' 
-               style='display: inline-block; background-color: #0070ba; color: #ffffff;
-                      padding: 8px 16px; border-radius: 6px; text-decoration: none;
-                      font-weight: 700; font-size: 0.85rem; width: 80%;'>
-                💳 PayPal Support
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # 코인 후원 섹션 추가
-    st.markdown("---")
-    st.markdown("<p style='text-align: center; color: #CCFF00; font-weight: 600;'>💎 Crypto Donation</p>", unsafe_allow_html=True)
-    
-    crypto_col1, crypto_col2 = st.columns(2)
-    with crypto_col1:
-        st.caption("ETH / ERC20")
-        st.code("0xB7BBF47aa5c8aC9551C7DEC9dD175DbBC5F98E54", language=None)
-        st.caption("BTC")
-        st.code("bc1q86v59zwytg72mdtsv5l3nkhlda7wztmkv4gv9e", language=None)
-        
-    with crypto_col2:
-        st.caption("SOL / Solana")
-        st.code("4tSoak4dM1KYciQv5FQJK1fzSb8PpH1roQLv4TbQPuuP", language=None)
-        st.caption("TRX / TRC20")
-        st.code("TSByfvevhYhX6Wo6VEvrJhHwd1azaCYaox", language=None)
 
 st.markdown("---")
 
