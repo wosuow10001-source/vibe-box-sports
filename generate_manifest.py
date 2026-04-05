@@ -17,6 +17,7 @@ def generate_manifest():
         "data/**/*.py",
         "data/**/*.db",
         "assets/**/*.*",
+        "predict-system/**/*.*",
     ]
     
     # 제외 패턴
