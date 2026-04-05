@@ -201,11 +201,7 @@ class DixonColesModel:
             self._fit_heuristic(matches)
     
     def _fit_heuristic(self, matches: List[dict] = None):
-        """
-        충분한 데이터가 없을 때 현재 시즌 통계로 휴리스틱 레이팅 생성.
-        α_team = team_avg_goals / league_avg_goals
-        β_team = team_avg_conceded / league_avg_goals
-        """
+        """데이터 부족 시 휴리스틱 모드"""
         defaults = self.LEAGUE_DEFAULTS.get(self.league, self.LEAGUE_DEFAULTS["DEFAULT"])
         self.home_advantage = defaults["home_adv"]
         self.rho = defaults["rho"]
@@ -213,15 +209,7 @@ class DixonColesModel:
     
     def estimate_from_stats(self, team_name: str, avg_goals: float, avg_conceded: float,
                             league_avg_goals: float = 1.35):
-        """
-        시즌 통계로 팀 레이팅 추정 (MLE 데이터 없을 때).
-        
-        Args:
-            team_name: 팀명
-            avg_goals: 경기당 평균 득점
-            avg_conceded: 경기당 평균 실점
-            league_avg_goals: 리그 평균 경기당 득점
-        """
+        """시즌 통계로 팀 레이팅 추정"""
         if league_avg_goals <= 0:
             league_avg_goals = 1.35
             
@@ -229,8 +217,8 @@ class DixonColesModel:
         defense = max(0.3, avg_conceded / league_avg_goals)
         
         self.teams[team_name] = {
-            'attack': round(attack, 4),
-            'defense': round(defense, 4)
+            'attack': round(float(attack), 4),
+            'defense': round(float(defense), 4)
         }
         
         if not self.fitted:
@@ -240,17 +228,11 @@ class DixonColesModel:
             self.fitted = True
     
     def predict_xg(self, home_team: str, away_team: str) -> Tuple[float, float]:
-        """
-        두 팀간 기대골(xG) 계산.
-        
-        Returns:
-            (home_xg, away_xg)
-        """
+        """기대골(xG) 계산"""
         if home_team not in self.teams or away_team not in self.teams:
-            # 등록되지 않은 팀은 평균 강도로 처리
             defaults = self.LEAGUE_DEFAULTS.get(self.league, self.LEAGUE_DEFAULTS["DEFAULT"])
             avg = defaults["avg_goals"]
-            return (avg * self.home_advantage, avg)
+            return (float(avg * self.home_advantage), float(avg))
         
         alpha_h = self.teams[home_team]['attack']
         beta_a = self.teams[away_team]['defense']
@@ -260,33 +242,15 @@ class DixonColesModel:
         home_xg = alpha_h * beta_a * self.home_advantage
         away_xg = alpha_a * beta_h
         
-        # 현실적 범위 클리핑
-        home_xg = max(0.3, min(3.5, home_xg))
-        away_xg = max(0.3, min(3.0, away_xg))
-        
-        return (round(home_xg, 3), round(away_xg, 3))
+        return (round(float(home_xg), 3), round(float(away_xg), 3))
     
-    def predict_score_probs(self, home_team: str, away_team: str, 
-                            max_goals: int = 7) -> dict:
-        """
-        DC 모델로 전체 스코어라인 확률 분포 계산.
-        
-        Returns:
-            {
-                'home_win': float, 'draw': float, 'away_win': float,
-                'score_probs': {(h, a): prob, ...},
-                'over_2_5': float, 'btts': float,
-                'home_xg': float, 'away_xg': float
-            }
-        """
+    def predict_score_probs(self, home_team: str, away_team: str, max_goals: int = 7) -> dict:
+        """스코어 확률 분포 계산"""
         home_xg, away_xg = self.predict_xg(home_team, away_team)
         
         score_probs = {}
-        home_win = 0.0
-        draw = 0.0
-        away_win = 0.0
-        over_2_5 = 0.0
-        btts = 0.0
+        home_win, draw, away_win = 0.0, 0.0, 0.0
+        over_2_5, btts = 0.0, 0.0
         
         for h in range(max_goals + 1):
             for a in range(max_goals + 1):
@@ -295,7 +259,7 @@ class DixonColesModel:
                 tau = self._dc_tau(h, a, home_xg, away_xg, self.rho)
                 
                 prob = tau * p_h * p_a
-                score_probs[(h, a)] = prob
+                score_probs[(h, a)] = float(prob)
                 
                 if h > a:
                     home_win += prob
@@ -309,20 +273,13 @@ class DixonColesModel:
                 if h > 0 and a > 0:
                     btts += prob
         
-        # 정규화
-        total = home_win + draw + away_win
-        if total > 0:
-            home_win /= total
-            draw /= total
-            away_win /= total
-        
         return {
-            'home_win': home_win,
-            'draw': draw,
-            'away_win': away_win,
+            'home_win': float(home_win),
+            'draw': float(draw),
+            'away_win': float(away_win),
             'score_probs': score_probs,
-            'over_2_5': over_2_5,
-            'btts': btts,
+            'over_2_5': float(over_2_5),
+            'btts': float(btts),
             'home_xg': home_xg,
             'away_xg': away_xg
         }
@@ -372,4 +329,3 @@ class DixonColesModel:
             return True
         except Exception:
             return False
-
