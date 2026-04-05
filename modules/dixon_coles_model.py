@@ -372,4 +372,4 @@ class DixonColesModel:
             return True
         except Exception:
             return False
-"""
+
